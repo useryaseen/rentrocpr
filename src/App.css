@@ -179,7 +179,7 @@ body {
 
 .table-row {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(8, 1fr);
   padding: 14px 18px;
   gap: 8px;
   font-size: 14px;
@@ -209,6 +209,32 @@ body {
 
 .status.declined {
   color: #a03636;
+}
+
+.status.draft {
+  color: #6a778f;
+}
+
+.status.sent {
+  color: #2b6cb0;
+}
+
+.status.accepted {
+  color: #1f7a52;
+}
+
+.status.rejected {
+  color: #a03636;
+}
+
+.status.expired {
+  color: #8b5e34;
+}
+
+.action-cell {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 
 .app-footer {
@@ -251,12 +277,14 @@ body {
 }
 
 .search-field input,
-.quotation-form input {
+.quotation-form input,
+.quotation-form select {
   border: 1px solid rgba(31, 42, 68, 0.15);
   border-radius: 12px;
   padding: 10px 12px;
   font-size: 14px;
   outline: none;
+  background: #ffffff;
 }
 
 .products-section {
@@ -377,6 +405,22 @@ body {
 
 .timeline-chip input {
   accent-color: #1f2a44;
+}
+
+.quotation-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: #f6f7fb;
+  border: 1px solid rgba(31, 42, 68, 0.08);
+}
+
+.quotation-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .empty-state {

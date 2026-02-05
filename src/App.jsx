@@ -13,6 +13,7 @@ function App() {
         <Route path="quotation-history" element={<QuotationHistory />} />
         <Route path="new-quotation" element={<NewQuotation />} />
         <Route path="create-quotation" element={<CreateQuotation />} />
+        <Route path="create-quotation/:id" element={<CreateQuotation />} />
       </Route>
     </Routes>
   );

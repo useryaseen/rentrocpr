@@ -1,15 +1,12 @@
 import "../App.css";
 import { NavLink } from "react-router-dom";
+import logo from "../assets/image.png";
 
 export default function Header() {
   return (
     <header className="app-header">
       <div className="brand">
-        <div className="brand-mark">R</div>
-        <div>
-          <h1>Rentro</h1>
-          <p>Rental Quotation Hub</p>
-        </div>
+        <img className="h-12 w-auto" src={logo} alt="" />
       </div>
       <nav className="nav-links">
         <NavLink to="/" end className="nav-btn">
@@ -21,9 +18,9 @@ export default function Header() {
         <NavLink to="/new-quotation" className="nav-btn">
           New Quotation
         </NavLink>
-        <NavLink to="/create-quotation" className="nav-btn">
+        {/* <NavLink to="/create-quotation" className="nav-btn">
           Create Quotation
-        </NavLink>
+        </NavLink> */}
       </nav>
       <NavLink to="/new-quotation" className="primary-btn">
         New Quote

@@ -304,6 +304,16 @@ export default function NewQuotation() {
                         <Link
                           to="/create-quotation"
                           state={{ product }}
+                          onClick={() => {
+                            try {
+                              sessionStorage.setItem(
+                                "selectedProduct",
+                                JSON.stringify(product)
+                              );
+                            } catch (error) {
+                              console.error("Failed to store product", error);
+                            }
+                          }}
                           className="px-4 py-2 bg-blue-500 text-white text-sm font-medium rounded hover:bg-blue-600"
                         >
                           Create Quote
