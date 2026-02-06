@@ -33,6 +33,7 @@ export default function QuotationHistory() {
               date: new Date(data.createdAt).toLocaleDateString(),
               installationPeriod: data.installationPeriod,
               status: data.status,
+              raw: data,
             };
           });
           setRows(mapped);
@@ -46,6 +47,45 @@ export default function QuotationHistory() {
       if (sub) sub.unsubscribe();
     };
   }, []);
+
+  const buildPdfPayload = (row) => {
+    const data = row.raw || {};
+    const products = data.products || [
+      {
+        name: row.productName || "",
+        capacity: "",
+        qty: row.quantity || 1,
+        unitAmount: row.amount || 0,
+        discount: 0,
+        total: row.totalAmount || row.amount || 0,
+      },
+    ];
+    return {
+      date: data.createdAt ? new Date(data.createdAt).toLocaleDateString() : "",
+      ref: data.quotationRefNo || row.quotationRefNo || row.id,
+      companyName: data.clientName || row.clientName || "",
+      companyAddress: data.clientCity || "",
+      attentionTo: data.clientAttendant || data.clientName || "",
+      subject: "",
+      intro: "",
+      installationUnit: "",
+      monthlyRent: "",
+      products,
+      monthlyRentProducts: products.map((item) => ({
+        product: item.name || "",
+        monthlyRent: "",
+        qtyMonths: Number(item.qty || 0),
+        totalAmount: item.total || 0,
+      })),
+      paymentTerms: [],
+      maintenanceService: [],
+      serviceMaintenance: data.serviceMaintenance || [],
+      otherTerms: data.otherTerms || [],
+      warrantyParts: data.warrantyParts || [],
+      clientCity: data.clientCity || "",
+      clientAttendant: data.clientAttendant || "",
+    };
+  };
 
   const buildPrintHtml = (row) => `
     <!doctype html>
@@ -82,6 +122,12 @@ export default function QuotationHistory() {
   `;
 
   const handleDownloadPdf = (row) => {
+    try {
+      const payload = buildPdfPayload(row);
+      sessionStorage.setItem("quotationPdfData", JSON.stringify(payload));
+    } catch (error) {
+      console.error("Failed to store PDF data", error);
+    }
     const printWindow = window.open("", "_blank", "width=900,height=700");
     if (!printWindow) return;
     printWindow.document.open();
@@ -129,10 +175,15 @@ export default function QuotationHistory() {
                 <button
                   className="bg-blue-600 p-2 text-white rounded-md"
                   type="button"
-                  onClick={() => handleDownloadPdf(row)}
+                  onClick={() => {
+                    const payload = buildPdfPayload(row);
+                    sessionStorage.setItem("quotationPdfData", JSON.stringify(payload));
+                    window.open("/quotation-pdf", "_blank");
+                  }}
                 >
-                  Print PDF
+                  Open PDF
                 </button>
+               
                 <Link className="bg-blue-600 p-2 text-white rounded-md" to={`/create-quotation/${row.id}`}>
                   Edit
                 </Link>

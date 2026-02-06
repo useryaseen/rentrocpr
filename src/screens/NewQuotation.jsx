@@ -134,14 +134,16 @@
 
 
 import { useMemo, useState, useEffect } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import axios from "axios";
 
 export default function NewQuotation() {
+  const navigate = useNavigate();
   const [products, setProducts] = useState([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [selectedProducts, setSelectedProducts] = useState([]);
 
   const getProducts = async () => {
     try {
@@ -171,6 +173,29 @@ export default function NewQuotation() {
       product?.name?.toLowerCase().includes(term)
     );
   }, [search, products]);
+
+  const toggleProduct = (product) => {
+    setSelectedProducts((prev) => {
+      const exists = prev.find((item) => item.productId === product.productId);
+      if (exists) {
+        return prev.filter((item) => item.productId !== product.productId);
+      }
+      return [...prev, product];
+    });
+  };
+
+  const handleProceed = () => {
+    if (selectedProducts.length === 0) return;
+    try {
+      sessionStorage.setItem(
+        "selectedProducts",
+        JSON.stringify(selectedProducts)
+      );
+    } catch (error) {
+      console.error("Failed to store selected products", error);
+    }
+    navigate("/create-quotation", { state: { products: selectedProducts } });
+  };
 
   // Simple SVG icons to avoid external dependencies
   const Icons = {
@@ -223,13 +248,21 @@ export default function NewQuotation() {
                 />
               </div>
             </div>
-            <Link
-              to="/create-quotation"
-              className="inline-flex items-center justify-center px-6 py-3 bg-blue-600 text-white font-medium rounded-lg hover:bg-blue-700 transition-colors"
+            <button
+              type="button"
+              onClick={handleProceed}
+              disabled={selectedProducts.length === 0}
+              className={`inline-flex items-center justify-center px-6 py-3 font-medium rounded-lg transition-colors ${
+                selectedProducts.length === 0
+                  ? "bg-gray-300 text-gray-600 cursor-not-allowed"
+                  : "bg-blue-600 text-white hover:bg-blue-700"
+              }`}
             >
               <Icons.Plus />
-              <span className="ml-2">Create Quotation</span>
-            </Link>
+              <span className="ml-2">
+                Create Quotation ({selectedProducts.length})
+              </span>
+            </button>
           </div>
         </div>
 
@@ -284,6 +317,18 @@ export default function NewQuotation() {
                     key={product.productId}
                     className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-md transition-shadow"
                   >
+                    <div className="flex items-center justify-between px-4 py-2 border-b border-gray-100">
+                      <label className="flex items-center gap-2 text-sm text-gray-700">
+                        <input
+                          type="checkbox"
+                          checked={selectedProducts.some(
+                            (item) => item.productId === product.productId
+                          )}
+                          onChange={() => toggleProduct(product)}
+                        />
+                        Select
+                      </label>
+                    </div>
                     <div className="h-48 bg-gray-100 overflow-hidden">
                       <img
                         src={imageUrl}
@@ -301,23 +346,17 @@ export default function NewQuotation() {
                             AED {price}
                           </span>
                         )}
-                        <Link
-                          to="/create-quotation"
-                          state={{ product }}
-                          onClick={() => {
-                            try {
-                              sessionStorage.setItem(
-                                "selectedProduct",
-                                JSON.stringify(product)
-                              );
-                            } catch (error) {
-                              console.error("Failed to store product", error);
-                            }
-                          }}
+                        <button
+                          type="button"
+                          onClick={() => toggleProduct(product)}
                           className="px-4 py-2 bg-blue-500 text-white text-sm font-medium rounded hover:bg-blue-600"
                         >
-                          Create Quote
-                        </Link>
+                          {selectedProducts.some(
+                            (item) => item.productId === product.productId
+                          )
+                            ? "Selected"
+                            : "Select"}
+                        </button>
                       </div>
                     </div>
                   </div>

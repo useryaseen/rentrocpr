@@ -692,8 +692,24 @@ export default function CreateQuotation() {
       return null;
     }
   }, []);
+  const storedProducts = useMemo(() => {
+    try {
+      const raw = sessionStorage.getItem("selectedProducts");
+      return raw ? JSON.parse(raw) : null;
+    } catch (error) {
+      console.error("Failed to read stored products", error);
+      return null;
+    }
+  }, []);
   const [selectedProduct, setSelectedProduct] = useState(storedProduct);
+  const [products, setProducts] = useState(
+    location.state?.products ??
+      storedProducts ??
+      (storedProduct ? [storedProduct] : [])
+  );
   const [clientName, setClientName] = useState("");
+  const [clientAttendant, setClientAttendant] = useState("");
+  const [clientCity, setClientCity] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [serviceDays, setServiceDays] = useState("3");
   const [installationPeriod, setInstallationPeriod] = useState("immediate");
@@ -706,10 +722,75 @@ export default function CreateQuotation() {
   const [customDays, setCustomDays] = useState("");
   const [customPurpose, setCustomPurpose] = useState("");
   const [quotationAmount, setQuotationAmount] = useState("");
+  const [paymentTerms, setPaymentTerms] = useState([
+    "Installation charges & first month rent payable upon installation.",
+    "Monthly rent prepaid at beginning of every month.",
+    "Online Transfer / Cheque accepted.",
+  ]);
+  const [termsConditions, setTermsConditions] = useState([
+    "Quotation validity: 30 days from the date of issue.",
+  ]);
+  const [warrantyItems, setWarrantyItems] = useState([
+    { title: "Warranty", value: "Lifetime" },
+    { title: "RO Unit Replacement", value: "36 Months" },
+  ]);
+  const [serviceMaintenance, setServiceMaintenance] = useState([
+    { item: "PPM (Periodical Service)", rentro: "Every 60 Days", others: "120 or 180 Days" },
+    { item: "Teardown Services", rentro: "6 Services", others: "1 or 2" },
+  ]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const pageTitle = editId ? "Edit Quotation" : "Create Quotation";
+
+  useEffect(() => {
+    const extractCapacity = (name) => {
+      if (!name) return "";
+      const match = String(name).match(/(\d+\s*(?:GPD|TPD|LPH|L\/H|LPM))/i);
+      return match ? match[0].toUpperCase() : "";
+    };
+    const needsDefaults = products.some(
+      (item) =>
+        item.qty === undefined ||
+        item.qty === null ||
+        item.unitAmount === undefined ||
+        item.unitAmount === null ||
+        item.discount === undefined ||
+        item.discount === null ||
+        !item.capacity
+    );
+    if (!needsDefaults) return;
+    setProducts((prev) =>
+      prev.map((item) => ({
+        ...item,
+        qty: item.qty ?? 1,
+        unitAmount: item.unitAmount ?? 0,
+        discount: item.discount ?? 0,
+        capacity: item.capacity || extractCapacity(item.name),
+      }))
+    );
+  }, [products]);
+
+  const updateProductField = (index, key, value) => {
+    setProducts((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [key]: value };
+      return next;
+    });
+  };
+
+  const productTotals = useMemo(() => {
+    return products.map((item) => {
+      const qty = Number(item.qty || 0);
+      const unit = Number(item.unitAmount || 0);
+      const discount = Number(item.discount || 0);
+      return Math.max(0, qty * unit - discount);
+    });
+  }, [products]);
+
+  const grandTotal = useMemo(() => {
+    return productTotals.reduce((sum, value) => sum + value, 0);
+  }, [productTotals]);
 
   // Initialize database
   useEffect(() => {
@@ -730,6 +811,19 @@ export default function CreateQuotation() {
   }, [product]);
 
   useEffect(() => {
+    if (location.state?.products && location.state.products.length > 0) {
+      try {
+        sessionStorage.setItem(
+          "selectedProducts",
+          JSON.stringify(location.state.products)
+        );
+        setProducts(location.state.products);
+        setSelectedProduct(location.state.products[0]);
+      } catch (error) {
+        console.error("Failed to store products", error);
+      }
+      return;
+    }
     if (!location.state?.product) return;
     try {
       sessionStorage.setItem(
@@ -737,6 +831,7 @@ export default function CreateQuotation() {
         JSON.stringify(location.state.product)
       );
       setSelectedProduct(location.state.product);
+      setProducts([location.state.product]);
     } catch (error) {
       console.error("Failed to store product", error);
     }
@@ -751,6 +846,8 @@ export default function CreateQuotation() {
       .then((data) => {
         if (!isActive || !data) return;
         setClientName(data.clientName || "");
+        setClientAttendant(data.clientAttendant || "");
+        setClientCity(data.clientCity || "");
         setQuantity(Number(data.quantity || 1));
         setServiceDays(data.serviceDays || "3");
         setInstallationPeriod(data.installationPeriod || "immediate");
@@ -802,6 +899,57 @@ export default function CreateQuotation() {
     }
   };
 
+  const updateListItem = (setter) => (index, value) => {
+    setter((prev) => {
+      const list = [...prev];
+      list[index] = value;
+      return list;
+    });
+  };
+
+  const addListItem = (setter, value = "") => {
+    setter((prev) => [...prev, value]);
+  };
+
+  const removeListItem = (setter, index) => {
+    setter((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const updateWarrantyItem = (index, key, value) => {
+    setWarrantyItems((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [key]: value };
+      return next;
+    });
+  };
+
+  const addWarrantyItem = () => {
+    setWarrantyItems((prev) => [...prev, { title: "", value: "" }]);
+  };
+
+  const removeWarrantyItem = (index) => {
+    setWarrantyItems((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const updateServiceMaintenance = (index, key, value) => {
+    setServiceMaintenance((prev) => {
+      const next = [...prev];
+      next[index] = { ...next[index], [key]: value };
+      return next;
+    });
+  };
+
+  const addServiceMaintenance = () => {
+    setServiceMaintenance((prev) => [
+      ...prev,
+      { item: "", rentro: "", others: "" },
+    ]);
+  };
+
+  const removeServiceMaintenance = (index) => {
+    setServiceMaintenance((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
   const handleCreateQuotation = async () => {
     // Validate required fields
     if (!clientName) {
@@ -809,12 +957,12 @@ export default function CreateQuotation() {
       return;
     }
     
-    if (!quotationAmount || parseFloat(quotationAmount) <= 0) {
-      setSubmitError("Please enter a valid quotation amount");
+    if (grandTotal <= 0) {
+      setSubmitError("Please enter product amounts to calculate total");
       return;
     }
     
-    if (!productId) {
+    if (products.length === 0) {
       setSubmitError("Product information is missing. Please select a product.");
       return;
     }
@@ -837,27 +985,30 @@ export default function CreateQuotation() {
       const quotationId = editId || uuidv4();
       const nowIso = new Date().toISOString();
 
-      const productDetails = product
+      const primaryProduct = products[0];
+      const primaryId =
+        primaryProduct?.productId ?? primaryProduct?.id ?? productId;
+      const productDetails = primaryProduct
         ? {
-            id: productId,
-            name: product.name,
-            description: product.description || "",
-            images: product.images || [],
+            id: String(primaryId ?? ""),
+            name: primaryProduct.name || "",
+            description: primaryProduct.description || "",
+            images: primaryProduct.images || [],
           }
         : undefined;
       
       const quotationData = {
         id: quotationId,
         clientName,
-        quantity,
+        quantity: products.reduce((sum, item) => sum + Number(item.qty || 0), 0),
         serviceDays: serviceDays === "custom" ? customDays : serviceDays,
         installationPeriod: installationPeriod === "custom_date" 
           ? customInstallationDate 
           : installationPeriod,
         purchasePurpose: purchasePurpose === "other" ? customPurpose : purchasePurpose,
-        quotationAmount: parseFloat(quotationAmount),
-        totalAmount: parseFloat(calculateTotal),
-        productId,
+        quotationAmount: Number(grandTotal || 0),
+        totalAmount: Number(grandTotal || 0),
+        productId: String(primaryId ?? ""),
         quotationRefNo: refNoToUse,
         countryCode,
         productDetails,
@@ -873,6 +1024,48 @@ export default function CreateQuotation() {
 
       console.log("Creating quotation with data:", quotationData);
       
+      const attendantName = clientAttendant.trim() || clientName.trim();
+      const pdfPayload = {
+        date: new Date().toLocaleDateString(),
+        ref: refNoToUse,
+        companyName: clientName,
+        companyAddress: clientCity || "",
+        attentionTo: attendantName,
+        subject: "",
+        intro: "",
+        installationUnit: "",
+        monthlyRent: "",
+        products: products.map((item, index) => ({
+          name: item.name || "",
+          capacity: item.capacity || "",
+          qty: Number(item.qty || 0),
+          unitAmount: Number(item.unitAmount || 0),
+          discount: Number(item.discount || 0),
+          total: productTotals[index] || 0,
+        })),
+            monthlyRentProducts: products.map((item, index) => ({
+              product: item.name || "",
+              monthlyRent: "",
+              qtyMonths: Number(item.qty || 0),
+              totalAmount: productTotals[index] || 0,
+            })),
+            paymentTerms: [],
+            maintenanceService: [],
+            serviceMaintenance,
+            otherTerms: termsConditions,
+            warrantyParts: warrantyItems.map((item) => ({
+              description: item.title,
+              value: item.value,
+            })),
+        clientCity: clientCity || "",
+        clientAttendant: attendantName,
+      };
+      try {
+        sessionStorage.setItem("quotationPdfData", JSON.stringify(pdfPayload));
+      } catch (error) {
+        console.error("Failed to store PDF data", error);
+      }
+
       const result = editId
         ? await databaseService.updateQuotation(editId, quotationData)
         : await databaseService.createQuotation(quotationData);
@@ -920,7 +1113,7 @@ export default function CreateQuotation() {
 
   return (
     <section className="min-h-screen bg-gray-50 p-4 md:p-6">
-      <div className="max-w-6xl mx-auto">
+      <div className="max-w-7xl mx-auto">
         <div className="mb-8">
           <h2 className="text-2xl md:text-3xl font-bold text-gray-900">{pageTitle}</h2>
           <p className="text-gray-600 mt-2">Fill in client details and confirm the selected product.</p>
@@ -952,32 +1145,62 @@ export default function CreateQuotation() {
           </div>
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" onKeyPress={handleKeyPress}>
-            {/* Selected Product Card */}
+            {/* Selected Products */}
             <div className="bg-white rounded-xl shadow-md p-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Selected Product</h3>
-              <div className="flex flex-col sm:flex-row gap-4 p-4 border border-gray-200 rounded-lg">
-                <div className="w-full sm:w-32 h-32 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
-                  {product.images?.[0]?.imageUrl ? (
-                    <img 
-                      src={product.images[0].imageUrl} 
-                      alt={product.name}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full flex items-center justify-center text-gray-400">
-                      No Image
-                    </div>
-                  )}
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Selected Products
+              </h3>
+              {products.length === 0 ? (
+                <div className="text-sm text-gray-500">
+                  No products selected.
                 </div>
-                <div className="flex-1">
-                  <h4 className="text-xl font-semibold text-gray-900 mb-2">{product.name}</h4>
-                  <p className="text-gray-600 mb-3 line-clamp-2">{product.description}</p>
-                  <div className="flex items-center justify-between">
-                    <span className="text-green-600 font-bold text-lg">{priceLabel}</span>
-                    <span className="text-sm text-gray-500">ID: {productId}</span>
-                  </div>
+              ) : (
+                <div className="space-y-4">
+                  {products.map((item, index) => {
+                    const itemId = item.productId ?? item.id ?? index;
+                    const itemPrice = item?.productFor?.rent?.monthlyPrice;
+                    const itemPriceLabel = itemPrice
+                      ? `AED ${Number(itemPrice).toFixed(0)} / month`
+                      : "AED 0 / month";
+                    return (
+                      <div
+                        key={itemId}
+                        className="flex flex-col sm:flex-row gap-4 p-4 border border-gray-200 rounded-lg"
+                      >
+                        <div className="w-full sm:w-32 h-32 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
+                          {item.images?.[0]?.imageUrl ? (
+                            <img
+                              src={item.images[0].imageUrl}
+                              alt={item.name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-gray-400">
+                              No Image
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex-1">
+                          <h4 className="text-xl font-semibold text-gray-900 mb-2">
+                            {item.name}
+                          </h4>
+                          <p className="text-gray-600 mb-3 line-clamp-2">
+                            {item.description}
+                          </p>
+                          <div className="flex items-center justify-between">
+                            <span className="text-green-600 font-bold text-lg">
+                              {itemPriceLabel}
+                            </span>
+                            <span className="text-sm text-gray-500">
+                              ID: {item.productId ?? item.id}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Quotation Form */}
@@ -1000,6 +1223,119 @@ export default function CreateQuotation() {
               </div>
 
               <div className="mb-6">
+                <label htmlFor="client-attendant" className="block text-sm font-medium text-gray-900 mb-2">
+                  Client Attendant
+                </label>
+                <input
+                  id="client-attendant"
+                  type="text"
+                  placeholder="Enter attendant name (optional)"
+                  value={clientAttendant}
+                  onChange={(event) => setClientAttendant(event.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  disabled={isSubmitting}
+                />
+              </div>
+
+              <div className="mb-6">
+                <label htmlFor="client-city" className="block text-sm font-medium text-gray-900 mb-2">
+                  Client City
+                </label>
+                <input
+                  id="client-city"
+                  type="text"
+                  placeholder="Enter city"
+                  value={clientCity}
+                  onChange={(event) => setClientCity(event.target.value)}
+                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  disabled={isSubmitting}
+                />
+              </div>
+
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
+                  Selected Products
+                </label>
+                {products.length === 0 ? (
+                  <div className="text-sm text-gray-500">
+                    No products selected. Go back and select products.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {products.map((item, index) => (
+                      <div
+                        key={`${item.productId || item.id || index}`}
+                        className="grid grid-cols-1 gap-2 rounded border border-gray-200 p-3 md:grid-cols-7"
+                      >
+                        <div className="md:col-span-2">
+                          <div className="text-xs text-gray-500">Product</div>
+                          <div className="text-sm font-semibold">
+                            {item.name || "Product"}
+                          </div>
+                        </div>
+                        <label className="text-xs text-gray-500">
+                          Capacity
+                          <input
+                            className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                            type="text"
+                            value={item.capacity || ""}
+                            onChange={(event) =>
+                              updateProductField(index, "capacity", event.target.value)
+                            }
+                          />
+                        </label>
+                        <label className="text-xs text-gray-500">
+                          Qty
+                          <input
+                            className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                            type="number"
+                            min="1"
+                            value={item.qty}
+                            onChange={(event) =>
+                              updateProductField(index, "qty", event.target.value)
+                            }
+                          />
+                        </label>
+                        <label className="text-xs text-gray-500">
+                          Unit Amount
+                          <input
+                            className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                            type="number"
+                            min="0"
+                            value={item.unitAmount}
+                            onChange={(event) =>
+                              updateProductField(index, "unitAmount", event.target.value)
+                            }
+                          />
+                        </label>
+                        <label className="text-xs text-gray-500">
+                          Discount
+                          <input
+                            className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                            type="number"
+                            min="0"
+                            value={item.discount}
+                            onChange={(event) =>
+                              updateProductField(index, "discount", event.target.value)
+                            }
+                          />
+                        </label>
+                        <div className="text-xs text-gray-500">
+                          Total
+                          <div className="mt-1 text-sm font-semibold">
+                            AED {productTotals[index]?.toFixed(2)}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                    <div className="text-right text-sm font-semibold">
+                      Grand Total: AED {grandTotal.toFixed(2)}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="mb-6">
                 <label htmlFor="country-code" className="block text-sm font-medium text-gray-900 mb-2">
                   Country <span className="text-red-500">*</span>
                 </label>
@@ -1018,52 +1354,7 @@ export default function CreateQuotation() {
                 </select>
               </div>
 
-              {/* Quantity and Amount */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-                <div>
-                  <label htmlFor="quantity" className="block text-sm font-medium text-gray-900 mb-2">
-                    Quantity <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    id="quantity"
-                    type="number"
-                    min="1"
-                    value={quantity}
-                    onChange={(event) => setQuantity(Number(event.target.value))}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                    required
-                    disabled={isSubmitting}
-                  />
-                </div>
-                <div>
-                  <label htmlFor="quotation-amount" className="block text-sm font-medium text-gray-900 mb-2">
-                    Quotation Amount (AED) <span className="text-red-500">*</span>
-                  </label>
-                  <input
-                    id="quotation-amount"
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    placeholder="0.00"
-                    value={quotationAmount}
-                    onChange={(event) => setQuotationAmount(event.target.value)}
-                    className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                    required
-                    disabled={isSubmitting}
-                  />
-                </div>
-              </div>
-
-              {/* Total Amount Display */}
-              <div className="mb-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
-                <div className="flex justify-between items-center mb-1">
-                  <span className="text-sm font-medium text-gray-900">Total Amount</span>
-                  <span className="text-2xl font-bold text-green-600">AED {calculateTotal}</span>
-                </div>
-                <p className="text-xs text-gray-500">
-                  Quantity: {quantity} × AED {quotationAmount || "0.00"}
-                </p>
-              </div>
+              {/* Product totals are handled in the Selected Products section */}
 
               {/* Service Timeline */}
               <div className="mb-6">
@@ -1161,7 +1452,7 @@ export default function CreateQuotation() {
                     </option>
                   ))}
                 </select>
-                {purchasePurpose === "other" && (
+              {purchasePurpose === "other" && (
                   <div className="mt-4">
                     <input
                       type="text"
@@ -1175,13 +1466,178 @@ export default function CreateQuotation() {
                 )}
               </div>
 
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-900">
+                    Payment Terms
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => addListItem(setPaymentTerms)}
+                    className="px-3 py-1 rounded bg-blue-600 text-white text-sm"
+                  >
+                    Add
+                  </button>
+                </div>
+                {paymentTerms.map((term, index) => (
+                  <div key={index} className="flex items-center gap-2 mb-2">
+                    <input
+                      type="text"
+                      value={term}
+                      onChange={(event) =>
+                        updateListItem(setPaymentTerms)(index, event.target.value)
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeListItem(setPaymentTerms, index)}
+                      className="px-2 py-1 text-xs rounded bg-red-500 text-white"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-900">
+                    Terms & Conditions
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => addListItem(setTermsConditions)}
+                    className="px-3 py-1 rounded bg-blue-600 text-white text-sm"
+                  >
+                    Add
+                  </button>
+                </div>
+                {termsConditions.map((term, index) => (
+                  <div key={index} className="flex items-center gap-2 mb-2">
+                    <input
+                      type="text"
+                      value={term}
+                      onChange={(event) =>
+                        updateListItem(setTermsConditions)(index, event.target.value)
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeListItem(setTermsConditions, index)}
+                      className="px-2 py-1 text-xs rounded bg-red-500 text-white"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-900">
+                    Warranty & Parts
+                  </label>
+                  <button
+                    type="button"
+                    onClick={addWarrantyItem}
+                    className="px-3 py-1 rounded bg-blue-600 text-white text-sm"
+                  >
+                    Add
+                  </button>
+                </div>
+                {warrantyItems.map((item, index) => (
+                  <div key={index} className="grid grid-cols-1 gap-2 md:grid-cols-3 mb-2">
+                    <input
+                      type="text"
+                      placeholder="Description"
+                      value={item.title}
+                      onChange={(event) =>
+                        updateWarrantyItem(index, "title", event.target.value)
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Value"
+                      value={item.value}
+                      onChange={(event) =>
+                        updateWarrantyItem(index, "value", event.target.value)
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeWarrantyItem(index)}
+                      className="px-2 py-1 text-xs rounded bg-red-500 text-white"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-900">
+                    Service & Maintenance (Rentro vs Others)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={addServiceMaintenance}
+                    className="px-3 py-1 rounded bg-blue-600 text-white text-sm"
+                  >
+                    Add
+                  </button>
+                </div>
+                {serviceMaintenance.map((row, index) => (
+                  <div key={index} className="grid grid-cols-1 gap-2 md:grid-cols-4 mb-2">
+                    <input
+                      type="text"
+                      placeholder="Item"
+                      value={row.item}
+                      onChange={(event) =>
+                        updateServiceMaintenance(index, "item", event.target.value)
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Rentro"
+                      value={row.rentro}
+                      onChange={(event) =>
+                        updateServiceMaintenance(index, "rentro", event.target.value)
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Others"
+                      value={row.others}
+                      onChange={(event) =>
+                        updateServiceMaintenance(index, "others", event.target.value)
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeServiceMaintenance(index)}
+                      className="px-2 py-1 text-xs rounded bg-red-500 text-white"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+              </div>
+
               {/* Submit Button */}
               <button 
                 type="button"
                 onClick={handleCreateQuotation}
-                disabled={!clientName || !quotationAmount || isSubmitting}
+                disabled={!clientName || grandTotal <= 0 || isSubmitting}
                 className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${
-                  !clientName || !quotationAmount || isSubmitting
+                  !clientName || grandTotal <= 0 || isSubmitting
                     ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
                     : 'bg-blue-600 text-white hover:bg-blue-700'
                 }`}
@@ -1197,6 +1653,56 @@ export default function CreateQuotation() {
                 ) : (
                   editId ? 'Update Quotation' : 'Create Quotation'
                 )}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const attendantName = clientAttendant.trim() || clientName.trim();
+                  const pdfPayload = {
+                    date: new Date().toLocaleDateString(),
+                    ref: quotationRefNo || "",
+                    companyName: clientName,
+                    companyAddress: clientCity || "",
+                    attentionTo: attendantName,
+                    subject: "",
+                    intro: "",
+                    installationUnit: "",
+                    monthlyRent: "",
+                    products: products.map((item, index) => ({
+                      name: item.name || "",
+                      capacity: item.capacity || "",
+                      qty: Number(item.qty || 0),
+                      unitAmount: Number(item.unitAmount || 0),
+                      discount: Number(item.discount || 0),
+                      total: productTotals[index] || 0,
+                    })),
+                    monthlyRentProducts: products.map((item, index) => ({
+                      product: item.name || "",
+                      monthlyRent: "",
+                      qtyMonths: Number(item.qty || 0),
+                      totalAmount: productTotals[index] || 0,
+                    })),
+                    paymentTerms: [],
+                    maintenanceService: [],
+                    serviceMaintenance,
+                    otherTerms: termsConditions,
+                    warrantyParts: warrantyItems.map((item) => ({
+                      description: item.title,
+                      value: item.value,
+                    })),
+                    clientCity: clientCity || "",
+                    clientAttendant: attendantName,
+                  };
+                  try {
+                    sessionStorage.setItem("quotationPdfData", JSON.stringify(pdfPayload));
+                  } catch (error) {
+                    console.error("Failed to store PDF data", error);
+                  }
+                  navigate("/quotation-pdf");
+                }}
+                className="mt-3 w-full py-3 px-4 rounded-lg font-medium transition-colors bg-green-600 text-white hover:bg-green-700"
+              >
+                Generate PDF
               </button>
             </div>
           </div>
