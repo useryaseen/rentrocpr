@@ -853,7 +853,7 @@ const QuotationPdf = () => {
             parsed.clientAttendant ||
             parsed.companyName ||
             prev.attentionTo,
-          companyAddress: parsed.clientCity || parsed.companyAddress || prev.companyAddress,
+          companyAddress: parsed.clientCity || parsed.companyAddress || prev?.countryCode,
         }));
       } catch (error) {
         console.error("Failed to load PDF data", error);
@@ -1173,7 +1173,10 @@ const QuotationPdf = () => {
 
               <div className="client-info">
                 <div><strong>M/s:</strong> {form.companyName}</div>
-                <div>{form.clientCity || form?.countryCode}</div>
+                <div>
+                  {form.clientCity || form?.companyAddress}
+                  {form.countryCode ? `, ${form.countryCode}` : ""}
+                </div>
                 <div className="mt-1">
                   <strong>Kind Attention:</strong>{" "}
                   {form.attentionTo || form.clientAttendant || form.companyName}
@@ -1283,7 +1286,7 @@ With reference to your enquiry, regarding the supply of Water Purification Syste
 
               <ul className="list-[lower-alpha] pl-5 terms-list">
                 {form.serviceMaintenance.map((term, index) => (
-                  <li key={index} className="text-sm">{term?.rentro}</li>
+                  <li key={index} className="text-sm">{term?.item}-{term?.rentro}</li>
                 ))}
               </ul>
 
@@ -1291,7 +1294,7 @@ With reference to your enquiry, regarding the supply of Water Purification Syste
 
               <ul className="list-[lower-alpha] pl-5  terms-list">
                 {form.serviceMaintenance.map((term, index) => (
-                  <li key={index} className="text-sm">{term?.others}</li>
+                  <li key={index} className="text-sm">{term?.item} - {term?.others}</li>
                 ))}
               </ul>
 

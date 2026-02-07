@@ -321,6 +321,7 @@ export default function NewQuotation() {
                       <label className="flex items-center gap-2 text-sm text-gray-700">
                         <input
                           type="checkbox"
+                         
                           checked={selectedProducts.some(
                             (item) => item.productId === product.productId
                           )}
@@ -349,7 +350,7 @@ export default function NewQuotation() {
                         <button
                           type="button"
                           onClick={() => toggleProduct(product)}
-                          className="px-4 py-2 bg-blue-500 text-white text-sm font-medium rounded hover:bg-blue-600"
+                          className="px-4 py-2 bg-blue-500 w-full text-white text-sm font-medium rounded hover:bg-blue-600"
                         >
                           {selectedProducts.some(
                             (item) => item.productId === product.productId

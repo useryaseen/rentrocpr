@@ -22,9 +22,7 @@ export default function Header() {
           Create Quotation
         </NavLink> */}
       </nav>
-      <NavLink to="/new-quotation" className="primary-btn">
-        New Quote
-      </NavLink>
+     
     </header>
   );
 }

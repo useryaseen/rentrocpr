@@ -72,6 +72,7 @@ export default function QuotationHistory() {
       ref: data.quotationRefNo || row.quotationRefNo || row.id,
       companyName: data.clientName || row.clientName || "",
       companyAddress: data.clientCity || "",
+      countryCode: data.countryCode || row.countryCode || "",
       attentionTo: data.clientAttendant || data.clientName || "",
       subject: "",
       intro: "",
@@ -152,7 +153,7 @@ export default function QuotationHistory() {
         <h2>Quotation History</h2>
         <p>Track recent quotations and their current status.</p>
       </div>
-      <div className="table-card w-[100%] ">
+      <div className="table-card w-[100%] hidden md:block">
         {isLoading && (
           <div className="table-row">
             <span>Loading quotations...</span>
@@ -200,6 +201,65 @@ export default function QuotationHistory() {
                   Edit
                 </Link>
               </span>
+            </div>
+          ))
+        )}
+      </div>
+      <div className="md:hidden mt-4 space-y-3">
+        {isLoading && (
+          <div className="rounded border border-blue-100 bg-blue-50 p-3 text-sm text-blue-700">
+            Loading quotations...
+          </div>
+        )}
+        {!isLoading && rows.length === 0 ? (
+          <div className="rounded border border-blue-100 bg-blue-50 p-3 text-sm text-blue-700">
+            No quotations yet.
+          </div>
+        ) : (
+          rows.map((row) => (
+            <div key={row.id} className="rounded-lg border border-blue-100 bg-white p-4 shadow-sm">
+              <div className="text-xs font-semibold text-blue-600">Quote Ref</div>
+              <div className="mb-2 text-sm font-medium">{row.quotationRefNo || row.id}</div>
+
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                <div>
+                  <div className="text-xs text-blue-600">Country</div>
+                  <div>{row.countryCode || "-"}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-blue-600">Client</div>
+                  <div>{row.clientName || "-"}</div>
+                </div>
+                <div className="col-span-2">
+                  <div className="text-xs text-blue-600">Product</div>
+                  <div>{row.productName}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-blue-600">Qty</div>
+                  <div>{row.quantity}</div>
+                </div>
+                <div>
+                  <div className="text-xs text-blue-600">Total</div>
+                  <div>AED {Number(row.totalAmount || row.amount || 0).toFixed(2)}</div>
+                </div>
+              </div>
+
+              <div className="mt-3 flex flex-wrap gap-2">
+                <button
+                  className="bg-blue-600 px-3 py-2 text-sm text-white rounded-md"
+                  type="button"
+                  onClick={() => {
+                    const payload = buildPdfPayload(row);
+                    sessionStorage.setItem("quotationPdfData", JSON.stringify(payload));
+                    setShowPdfPreview(true);
+                  }}
+                >
+                  Open PDF
+                </button>
+                <Link className="bg-blue-600 px-3 py-2 text-sm text-white rounded-md" to={`/create-quotation/${row.id}`}>
+                  Edit
+                </Link>
+              </div>
             </div>
           ))
         )}

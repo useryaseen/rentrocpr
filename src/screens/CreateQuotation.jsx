@@ -715,10 +715,11 @@ export default function CreateQuotation() {
   const [serviceDays, setServiceDays] = useState("3");
   const [installationPeriod, setInstallationPeriod] = useState("immediate");
   const [purchasePurpose, setPurchasePurpose] = useState("store");
-  const [countryCode, setCountryCode] = useState("AE");
+    const [countryCode, setCountryCode] = useState("AE");
   const [quotationRefNo, setQuotationRefNo] = useState("");
   const [isLoadingQuotation, setIsLoadingQuotation] = useState(false);
   const [showPdfPreview, setShowPdfPreview] = useState(false);
+  const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [productId, setProductId] = useState("");
   const product = selectedProduct;
   const [customInstallationDate, setCustomInstallationDate] = useState("");
@@ -797,7 +798,11 @@ export default function CreateQuotation() {
       const installationCharge = Number(item.installationCharge || 0);
       const monthlyRent = Number(item.monthlyRent || 0);
       const monthsQty = Number(item.monthsQty || 0);
-      const total = qty * unit - discount + installationCharge + monthlyRent * monthsQty;
+      const total =
+        qty * unit -
+        discount +
+        installationCharge * qty +
+        monthlyRent * monthsQty;
       return Math.max(0, total);
     });
   }, [products]);
@@ -986,6 +991,7 @@ export default function CreateQuotation() {
           ref: refNoToUse || quotationRefNo || "",
           companyName: clientName,
           companyAddress: clientCity || "",
+          countryCode,
           attentionTo: attendantName,
           subject: "",
           intro: "",
@@ -1132,7 +1138,10 @@ export default function CreateQuotation() {
         ? await databaseService.updateQuotation(editId, quotationData)
         : await databaseService.createQuotation(quotationData);
       
-      setSubmitSuccess(true);
+        setSubmitSuccess(true);
+        if (!navigateToPdf) {
+          setShowSuccessDialog(true);
+        }
       
         // Reset form
         if (!editId && !navigateToPdf) {
@@ -1164,17 +1173,22 @@ export default function CreateQuotation() {
           ]);
         }
       
-      // Auto-hide success message
-      setTimeout(() => setSubmitSuccess(false), 3000);
+        // Auto-hide success message
+        setTimeout(() => setSubmitSuccess(false), 3000);
       
         console.log("Quotation created successfully:", result);
         if (navigateToPdf) {
           setShowPdfPreview(true);
         }
 
-      if (editId) {
-        navigate("/quotation-history");
-      }
+        if (editId) {
+          navigate("/quotation-history");
+        } else if (!navigateToPdf) {
+          setTimeout(() => {
+            setShowSuccessDialog(false);
+            navigate("/quotation-history");
+          }, 1200);
+        }
       
     } catch (error) {
       console.error("Failed to create quotation:", error);
@@ -1229,7 +1243,7 @@ export default function CreateQuotation() {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" onKeyPress={handleKeyPress}>
+          <div className=" gap-6" onKeyPress={handleKeyPress}>
             {/* Selected Products */}
             <div className="bg-white rounded-xl shadow-md p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
@@ -1387,7 +1401,7 @@ export default function CreateQuotation() {
                           />
                         </label>
                         <label className="text-xs text-gray-500">
-                          Installation Charge
+                          Installation Charge (per unit)
                           <input
                             className="mt-1 w-full rounded border px-2 py-1 text-sm"
                             type="number"
@@ -1434,20 +1448,33 @@ export default function CreateQuotation() {
                             }
                           />
                         </label>
-                        <div className="text-xs text-gray-500">
-                          Total
-                          <div className="mt-1 text-sm font-semibold">
-                            AED {productTotals[index]?.toFixed(2)}
-                          </div>
-                        </div>
+                        
                       </div>
                     ))}
-                    <div className="text-right text-sm font-semibold">
-                      Grand Total: AED {grandTotal.toFixed(2)}
+                      <div className="mt-3 grid gap-2 text-sm">
+                        <div className="flex items-center justify-between font-semibold">
+                          <span>Grand Total (One-time)</span>
+                          <span>AED {grandTotal.toFixed(2)}</span>
+                        </div>
+                        <div className="flex items-center justify-between text-gray-600">
+                          <span>Monthly Charge Total</span>
+                          <span>
+                            AED{" "}
+                            {products
+                              .reduce(
+                                (sum, item) =>
+                                  sum +
+                                  Number(item.monthlyRent || 0) *
+                                    Number(item.monthsQty || 0),
+                                0
+                              )
+                              .toFixed(2)}
+                          </span>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                )}
-              </div>
+                  )}
+                </div>
 
               <div className="mb-6">
                 <label htmlFor="country-code" className="block text-sm font-medium text-gray-900 mb-2">
@@ -1456,7 +1483,23 @@ export default function CreateQuotation() {
                 <select
                   id="country-code"
                   value={countryCode}
-                  onChange={(event) => setCountryCode(event.target.value)}
+                  onChange={(event) => {
+                    const nextCode = event.target.value;
+                    setCountryCode(nextCode);
+                    if (quotationRefNo) {
+                      const parts = quotationRefNo.split("/");
+                      if (parts.length >= 5 && parts[0] === "RRO") {
+                        const nextRef = [
+                          parts[0],
+                          nextCode,
+                          parts[2],
+                          parts[3],
+                          parts[4],
+                        ].join("/");
+                        setQuotationRefNo(nextRef);
+                      }
+                    }
+                  }}
                   className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors appearance-none bg-white"
                   disabled={isSubmitting}
                 >
@@ -1580,39 +1623,6 @@ export default function CreateQuotation() {
                 )}
               </div>
 
-              <div className="mb-8">
-                <div className="flex items-center justify-between mb-2">
-                  <label className="block text-sm font-medium text-gray-900">
-                    Services
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => addListItem(setServices)}
-                    className="px-3 py-1 rounded bg-blue-600 text-white text-sm"
-                  >
-                    Add
-                  </button>
-                </div>
-                {services.map((term, index) => (
-                  <div key={index} className="flex items-center gap-2 mb-2">
-                    <input
-                      type="text"
-                      value={term}
-                      onChange={(event) =>
-                        updateListItem(setServices)(index, event.target.value)
-                      }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => removeListItem(setServices, index)}
-                      className="px-2 py-1 text-xs rounded bg-red-500 text-white"
-                    >
-                      Remove
-                    </button>
-                  </div>
-                ))}
-              </div>
 
               <div className="mb-8">
                 <div className="flex items-center justify-between mb-2">
@@ -1824,6 +1834,26 @@ export default function CreateQuotation() {
                 Close
               </button>
               <QuotationPdf />
+            </div>
+          </div>
+        )}
+        {showSuccessDialog && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+            <div className="w-full max-w-md rounded-lg bg-white p-6 text-center shadow-xl">
+              <h3 className="text-lg font-semibold text-blue-700">Quotation Created</h3>
+              <p className="mt-2 text-sm text-gray-600">
+                Your quotation was created successfully. Redirecting to history...
+              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowSuccessDialog(false);
+                  navigate("/quotation-history");
+                }}
+                className="mt-4 rounded bg-blue-600 px-4 py-2 text-white"
+              >
+                Go to History
+              </button>
             </div>
           </div>
         )}

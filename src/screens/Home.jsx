@@ -75,7 +75,7 @@ export default function Home() {
       </div>
 
       <div className="products-section">
-        <h3>Recent Quotations</h3>
+        <h3 className="text-blue-700">Recent Quotations</h3>
         {recent.length === 0 ? (
           <div className="card">
             <p>No quotations yet. Create your first one.</p>
