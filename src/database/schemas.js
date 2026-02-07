@@ -129,7 +129,7 @@
 // src/database/schemas.js
 export const productSchema = {
   title: 'Product Schema',
-  version: 0,
+  version: 1,
   primaryKey: 'id',
   type: 'object',
   properties: {
@@ -141,6 +141,9 @@ export const productSchema = {
       type: 'string'
     },
     description: {
+      type: 'string'
+    },
+    capacity: {
       type: 'string'
     },
     images: {
@@ -183,7 +186,7 @@ export const productSchema = {
 
 export const quotationSchema = {
   title: 'Quotation Schema',
-  version: 2,
+  version: 4,
   primaryKey: 'id',
   type: 'object',
   properties: {
@@ -193,6 +196,16 @@ export const quotationSchema = {
     },
     clientName: {
       type: 'string'
+    },
+    clientAttendant: {
+      type: 'string'
+    },
+    clientCity: {
+      type: 'string'
+    },
+    services: {
+      type: 'array',
+      items: { type: 'string' }
     },
     quantity: {
       type: 'number',
@@ -231,6 +244,7 @@ export const quotationSchema = {
         id: { type: 'string' },
         name: { type: 'string' },
         description: { type: 'string' },
+        capacity: { type: 'string' },
         images: {
           type: 'array',
           items: {
@@ -245,6 +259,61 @@ export const quotationSchema = {
           }
         }
       }
+    },
+    products: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          name: { type: 'string' },
+          capacity: { type: 'string' },
+          qty: { type: 'number' },
+          unitAmount: { type: 'number' },
+          discount: { type: 'number' },
+          total: { type: 'number' },
+          installationCharge: { type: 'number' },
+          monthlyRent: { type: 'number' },
+          monthsQty: { type: 'number' },
+          productDetails: {
+            type: 'object',
+            additionalProperties: true
+          }
+        }
+      }
+    },
+    paymentTerms: {
+      type: 'array',
+      items: { type: 'string' }
+    },
+    termsConditions: {
+      type: 'array',
+      items: { type: 'string' }
+    },
+    warrantyParts: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          description: { type: 'string' },
+          value: { type: 'string' }
+        }
+      }
+    },
+    serviceMaintenance: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          item: { type: 'string' },
+          rentro: { type: 'string' },
+          others: { type: 'string' }
+        }
+      }
+    },
+    maintenanceService: {
+      type: 'array',
+      items: { type: 'string' }
     },
     status: {
       type: 'string',

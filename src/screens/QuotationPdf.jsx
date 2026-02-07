@@ -992,9 +992,9 @@ const QuotationPdf = () => {
               font-size: 14px;
               font-weight: bold;
               color: #1e293b;
-              margin: 15px 0;
-              padding: 8px 0;
-              border-bottom: 1px solid #cbd5e1;
+              margin: 0px 0;
+              padding: 4px 0;
+              
             }
             table {
               width: 100%;
@@ -1037,9 +1037,10 @@ const QuotationPdf = () => {
             .terms-list {
               margin: 10px 0 20px 0;
               padding-left: 20px;
+              list-style-type: lower-alpha;
             }
             .terms-list li {
-              margin-bottom: 6px;
+              margin-bottom: 2px;
               font-size: 11px;
             }
             .signature {
@@ -1146,7 +1147,7 @@ const QuotationPdf = () => {
   };
 
   return (
-    <div className="p-6 bg-gray-100 min-h-screen">
+    <div className="p-6 bg-gray-100 flex justify-center items-center mt-16">
       <button
         onClick={generatePdf}
         className="mb-6 px-8 py-3 bg-gradient-to-r from-blue-600 to-blue-800 hover:from-blue-700 hover:to-blue-900 text-white font-semibold rounded-lg shadow-lg transition duration-200 flex items-center gap-2"
@@ -1158,7 +1159,7 @@ const QuotationPdf = () => {
       </button>
 
       {/* PDF Preview */}
-      <div className="bg-white rounded-lg shadow-xl p-2 mb-6 overflow-auto border border-gray-300">
+      <div className="bg-white hidden rounded-lg shadow-xl p-2 mb-6 overflow-hidden border border-gray-300">
         <div ref={pdfRef} className="scale-75 origin-top">
           {/* ================= PAGE 1 ================= */}
           <section className="pdf-page">
@@ -1172,18 +1173,19 @@ const QuotationPdf = () => {
 
               <div className="client-info">
                 <div><strong>M/s:</strong> {form.companyName}</div>
-                <div>{form.clientCity || form.companyAddress}</div>
+                <div>{form.clientCity || form?.countryCode}</div>
                 <div className="mt-1">
                   <strong>Kind Attention:</strong>{" "}
                   {form.attentionTo || form.clientAttendant || form.companyName}
                 </div>
               </div>
 
-              <div className="subject">Subject: {form.subject}</div>
+              <div className="subject">Subject: Water Purification System - Monthly Rent- {form?.products.map((product) => product.name).join(", ")}</div>
+              <div className="subject" >Project / Store Br: <span class="text-red-500">{form?.clientCity|| "N/A"}</span></div>
 
               <p className="mb-6 text-sm">
                 Dear Sir/Madam,<br />
-                {form.intro}
+With reference to your enquiry, regarding the supply of Water Purification Systems on Rental
               </p>
 
               <div className="section-title">DELIVERY & INSTALLATION</div>
@@ -1205,8 +1207,8 @@ const QuotationPdf = () => {
                       <td>{product.name}</td>
                       <td>{product.capacity}</td>
                       <td>{product.qty}</td>
-                      <td>{form.installationUnit}</td>
-                      <td>{product.total}</td>
+                      <td>SAR: {product.installationCharge ?? form.installationUnit}</td>
+                      <td>SAR: {product.total}</td>
                     </tr>
                   ))}
                   <tr>
@@ -1234,9 +1236,9 @@ const QuotationPdf = () => {
                     <tr key={index}>
                       <td>{index + 1}</td>
                       <td>{product.product}</td>
-                      <td>{product.monthlyRent || form.monthlyRent}</td>
+                      <td>SAR: {product.monthlyRent || form.monthlyRent}</td>
                       <td>{product.qtyMonths}</td>
-                      <td>{product.totalAmount}</td>
+                      <td> SAR {product.totalAmount}</td>
                     </tr>
                   ))}
                   <tr>
@@ -1277,11 +1279,21 @@ const QuotationPdf = () => {
               </ol>
 
               <div className="section-title">2. Maintenance and Service:</div>
-              <ol className="list-decimal pl-5 space-y-1 terms-list">
-                {form.maintenanceService.map((term, index) => (
-                  <li key={index} className="text-sm">{term}</li>
+              <h4>Maintenance and Service In Rentro</h4>
+
+              <ul className="list-[lower-alpha] pl-5 terms-list">
+                {form.serviceMaintenance.map((term, index) => (
+                  <li key={index} className="text-sm">{term?.rentro}</li>
                 ))}
-              </ol>
+              </ul>
+
+              <h4>Maintenance and Service In Other Company</h4>
+
+              <ul className="list-[lower-alpha] pl-5  terms-list">
+                {form.serviceMaintenance.map((term, index) => (
+                  <li key={index} className="text-sm">{term?.others}</li>
+                ))}
+              </ul>
 
               <div className="section-title">3. Other Terms & Conditions:</div>
               <ol className="list-decimal pl-5 space-y-1 terms-list">
@@ -1293,7 +1305,7 @@ const QuotationPdf = () => {
               <div className="signature">
                 <div className="font-bold text-lg mb-1">Best Regards</div>
                 <div className="signature-name">M/S RENTRO COMPANY</div>
-                <div className="font-semibold text-sm mt-1">Muzammil Ahmed</div>
+                <div class="font-semibold text-sm mt-1">Muzammil Ahmed</div>
                 <div className="text-gray-600 text-sm">C.O.O. & Co-Founder</div>
                 <div className="mt-1 text-sm">050-670 9963</div>
               </div>
@@ -1383,60 +1395,7 @@ const QuotationPdf = () => {
         </div>
       </div>
 
-      {/* Form Editor */}
-      <div className="bg-white p-6 rounded-lg shadow-md">
-        <h3 className="text-lg font-bold mb-4 text-blue-700 border-b pb-2">Edit Quotation Data</h3>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div>
-            <label className="block text-sm font-medium mb-1">Date</label>
-            <input
-              className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={form.date}
-              onChange={(e) => updateField("date", e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Reference</label>
-            <input
-              className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={form.ref}
-              onChange={(e) => updateField("ref", e.target.value)}
-            />
-          </div>
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium mb-1">Company Name</label>
-            <input
-              className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={form.companyName}
-              onChange={(e) => updateField("companyName", e.target.value)}
-            />
-          </div>
-          <div className="md:col-span-2">
-            <label className="block text-sm font-medium mb-1">Company Address</label>
-            <input
-              className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={form.companyAddress}
-              onChange={(e) => updateField("companyAddress", e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Kind Attention</label>
-            <input
-              className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={form.attentionTo}
-              onChange={(e) => updateField("attentionTo", e.target.value)}
-            />
-          </div>
-          <div>
-            <label className="block text-sm font-medium mb-1">Subject</label>
-            <input
-              className="w-full border border-gray-300 rounded px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              value={form.subject}
-              onChange={(e) => updateField("subject", e.target.value)}
-            />
-          </div>
-        </div>
-      </div>
+ 
     </div>
   );
 };

@@ -1,95 +1,62 @@
-// import { createRxDatabase } from "rxdb";
-// import { getRxStorageDexie } from "rxdb/plugins/storage-dexie";
+import { createRxDatabase, addRxPlugin, removeRxDatabase } from "rxdb";
+import { getRxStorageDexie } from "rxdb/plugins/storage-dexie";
+import { wrappedValidateAjvStorage } from "rxdb/plugins/validate-ajv";
+import { RxDBQueryBuilderPlugin } from "rxdb/plugins/query-builder";
+import { RxDBUpdatePlugin } from "rxdb/plugins/update";
+import { RxDBMigrationSchemaPlugin } from "rxdb/plugins/migration-schema";
 
-// let dbPromise;
-
-// const quotationSchema = {
-//   title: "quotation schema",
-//   version: 0,
-//   description: "Stores rental quotations",
-//   primaryKey: "id",
-//   type: "object",
-//   properties: {
-//     id: { type: "string", maxLength: 100 },
-//     createdAt: { type: "string" },
-//     productName: { type: "string" },
-//     quantity: { type: "number" },
-//     quotationAmount: { type: "number" },
-//     quotationRefNo: { type: "string" },
-//     installationPeriod: { type: "string" },
-//     countryCode: { type: "string" },
-//   },
-//   required: [
-//     "id",
-//     "createdAt",
-//     "productName",
-//     "quantity",
-//     "quotationAmount",
-//     "quotationRefNo",
-//     "installationPeriod",
-//     "countryCode",
-//   ],
-// };
-
-// export async function getDatabase() {
-//   if (!dbPromise) {
-//     dbPromise = createRxDatabase({
-//       name: "rentrodb",
-//       storage: getRxStorageDexie(),
-//     }).then(async (db) => {
-//       await db.addCollections({
-//         quotations: {
-//           schema: quotationSchema,
-//         },
-//       });
-//       return db;
-//     });
-//   }
-
-//   return dbPromise;
-// }
-
-
-
-// src/database/rxdb.js
-import { createRxDatabase, addRxPlugin } from 'rxdb';
-import { getRxStorageDexie } from 'rxdb/plugins/storage-dexie';
-
-import { wrappedValidateAjvStorage } from 'rxdb/plugins/validate-ajv';
-import { RxDBQueryBuilderPlugin } from 'rxdb/plugins/query-builder';
-import { RxDBUpdatePlugin } from 'rxdb/plugins/update';
-import { RxDBMigrationSchemaPlugin } from 'rxdb/plugins/migration-schema';
-
-// Add plugins
 addRxPlugin(RxDBQueryBuilderPlugin);
 addRxPlugin(RxDBUpdatePlugin);
 addRxPlugin(RxDBMigrationSchemaPlugin);
 
-const DB_KEY = "__rentro_rxdb_v4__";
-let databaseInstance = null;
+const DB_NAME = "quotationdb_v11";
+const REGISTRY_KEY = "__rentro_rxdb_registry__";
 
 export const initDatabase = async () => {
-  if (databaseInstance) return databaseInstance;
-  if (globalThis[DB_KEY]) {
-    databaseInstance = globalThis[DB_KEY];
-    return databaseInstance;
+  const registry = globalThis[REGISTRY_KEY] || (globalThis[REGISTRY_KEY] = {});
+  if (registry[DB_NAME]) {
+    const existing = await registry[DB_NAME];
+    if (existing && typeof existing.addCollections === "function") {
+      return existing;
+    }
+    delete registry[DB_NAME];
   }
 
   const storage = wrappedValidateAjvStorage({
-    storage: getRxStorageDexie()
+    storage: getRxStorageDexie(),
   });
 
-  databaseInstance = await createRxDatabase({
-    name: 'quotationdb_v4', // Database name
-    storage,
-    password: 'myStrongPassword123!', // For encryption
-    multiInstance: false, // Set to true if using multiple tabs
-    eventReduce: true, // Better performance
+  const createDb = async () =>
+    createRxDatabase({
+      name: DB_NAME,
+      storage,
+      password: "myStrongPassword123!",
+      multiInstance: true,
+      eventReduce: true,
+      closeDuplicates: true,
+    });
+
+  const dbPromise = createDb().catch(async (error) => {
+    const message = String(error?.message || "");
+    if (message.includes("DB9")) {
+      try {
+        await removeRxDatabase(DB_NAME, storage);
+      } catch (removeError) {
+        console.warn("RxDB reset failed", removeError);
+      }
+      return createDb();
+    }
+    throw error;
   });
 
-  globalThis[DB_KEY] = databaseInstance;
-
-  return databaseInstance;
+  registry[DB_NAME] = dbPromise;
+  const db = await dbPromise;
+  registry[DB_NAME] = Promise.resolve(db);
+  return db;
 };
 
-export const getDatabase = () => databaseInstance;
+export const getDatabase = () => {
+  const registry = globalThis[REGISTRY_KEY];
+  const entry = registry ? registry[DB_NAME] : null;
+  return entry && typeof entry.then !== "function" ? entry : null;
+};

@@ -269,7 +269,54 @@ export const databaseService = {
                   doc.quotationRefNo || buildRefNo(doc.createdAt, fallbackSerial, countryCode),
               };
             },
-          },
+              3: (doc) => {
+              const fallbackSerial = Math.floor(
+                (new Date(doc.createdAt || Date.now()).getTime() / 1000) % 100000
+              );
+              const countryCode = doc.countryCode || 'AE';
+              const baseProducts = doc.products?.length
+                ? doc.products
+                : doc.productDetails
+                ? [
+                    {
+                      id: doc.productDetails?.id || doc.productId || '',
+                      name: doc.productDetails?.name || '',
+                      capacity: doc.productDetails?.capacity || '',
+                      qty: doc.quantity || 1,
+                      unitAmount: doc.quotationAmount || 0,
+                      discount: 0,
+                      total: doc.totalAmount || doc.quotationAmount || 0,
+                      productDetails: doc.productDetails || {}
+                    }
+                  ]
+                : [];
+
+                return {
+                  ...doc,
+                  countryCode,
+                  quotationRefNo:
+                    doc.quotationRefNo || buildRefNo(doc.createdAt, fallbackSerial, countryCode),
+                  clientAttendant: doc.clientAttendant || '',
+                  clientCity: doc.clientCity || '',
+                  products: baseProducts,
+                  paymentTerms: doc.paymentTerms || [],
+                  termsConditions: doc.termsConditions || [],
+                  warrantyParts: doc.warrantyParts || [],
+                  serviceMaintenance: doc.serviceMaintenance || [],
+                  maintenanceService: doc.maintenanceService || []
+                };
+              },
+              4: (doc) => ({
+                ...doc,
+                services: doc.services || [],
+                products: (doc.products || []).map((item) => ({
+                  installationCharge: 0,
+                  monthlyRent: 0,
+                  monthsQty: 0,
+                  ...item
+                }))
+              })
+            },
         };
       }
       if (Object.keys(collectionsToAdd).length > 0) {
@@ -318,7 +365,54 @@ export const databaseService = {
                   doc.quotationRefNo || buildRefNo(doc.createdAt, fallbackSerial, countryCode),
               };
             },
-          },
+              3: (doc) => {
+              const fallbackSerial = Math.floor(
+                (new Date(doc.createdAt || Date.now()).getTime() / 1000) % 100000
+              );
+              const countryCode = doc.countryCode || 'AE';
+              const baseProducts = doc.products?.length
+                ? doc.products
+                : doc.productDetails
+                ? [
+                    {
+                      id: doc.productDetails?.id || doc.productId || '',
+                      name: doc.productDetails?.name || '',
+                      capacity: doc.productDetails?.capacity || '',
+                      qty: doc.quantity || 1,
+                      unitAmount: doc.quotationAmount || 0,
+                      discount: 0,
+                      total: doc.totalAmount || doc.quotationAmount || 0,
+                      productDetails: doc.productDetails || {}
+                    }
+                  ]
+                : [];
+
+                return {
+                  ...doc,
+                  countryCode,
+                  quotationRefNo:
+                    doc.quotationRefNo || buildRefNo(doc.createdAt, fallbackSerial, countryCode),
+                  clientAttendant: doc.clientAttendant || '',
+                  clientCity: doc.clientCity || '',
+                  products: baseProducts,
+                  paymentTerms: doc.paymentTerms || [],
+                  termsConditions: doc.termsConditions || [],
+                  warrantyParts: doc.warrantyParts || [],
+                  serviceMaintenance: doc.serviceMaintenance || [],
+                  maintenanceService: doc.maintenanceService || []
+                };
+              },
+              4: (doc) => ({
+                ...doc,
+                services: doc.services || [],
+                products: (doc.products || []).map((item) => ({
+                  installationCharge: 0,
+                  monthlyRent: 0,
+                  monthsQty: 0,
+                  ...item
+                }))
+              })
+            },
         },
       });
     }

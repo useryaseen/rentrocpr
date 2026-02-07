@@ -150,7 +150,7 @@ export default function NewQuotation() {
       setLoading(true);
       setError("");
       const response = await axios.get(
-        "http://192.168.1.100:8081/api/v1/products"
+        "https://api.rentro.sa/api/v1/products"
       );
       setProducts(response?.data || []);
     } catch (error) {

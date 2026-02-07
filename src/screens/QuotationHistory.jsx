@@ -1,10 +1,13 @@
 import "../App.css";
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import QuotationPdf from "./QuotationPdf";
 import { databaseService } from "../database/databaseService";
 
 export default function QuotationHistory() {
   const [rows, setRows] = useState([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [showPdfPreview, setShowPdfPreview] = useState(false);
   console.log(databaseService, "databaseService");
 
   useEffect(() => {
@@ -37,6 +40,7 @@ export default function QuotationHistory() {
             };
           });
           setRows(mapped);
+          setIsLoading(false);
         });
     };
 
@@ -57,6 +61,9 @@ export default function QuotationHistory() {
         qty: row.quantity || 1,
         unitAmount: row.amount || 0,
         discount: 0,
+        installationCharge: 0,
+        monthlyRent: 0,
+        monthsQty: 0,
         total: row.totalAmount || row.amount || 0,
       },
     ];
@@ -73,14 +80,14 @@ export default function QuotationHistory() {
       products,
       monthlyRentProducts: products.map((item) => ({
         product: item.name || "",
-        monthlyRent: "",
-        qtyMonths: Number(item.qty || 0),
-        totalAmount: item.total || 0,
+        monthlyRent: Number(item.monthlyRent || 0),
+        qtyMonths: Number(item.monthsQty || 0),
+        totalAmount: Number(item.monthlyRent || 0) * Number(item.monthsQty || 0),
       })),
-      paymentTerms: [],
-      maintenanceService: [],
+      paymentTerms: data.paymentTerms || [],
+      maintenanceService: data.services || data.maintenanceService || [],
       serviceMaintenance: data.serviceMaintenance || [],
-      otherTerms: data.otherTerms || [],
+      otherTerms: data.termsConditions || [],
       warrantyParts: data.warrantyParts || [],
       clientCity: data.clientCity || "",
       clientAttendant: data.clientAttendant || "",
@@ -146,6 +153,11 @@ export default function QuotationHistory() {
         <p>Track recent quotations and their current status.</p>
       </div>
       <div className="table-card w-[100%] ">
+        {isLoading && (
+          <div className="table-row">
+            <span>Loading quotations...</span>
+          </div>
+        )}
         <div className="table-row table-head">
           <span>Quote Ref</span>
           <span>Country</span>
@@ -155,7 +167,7 @@ export default function QuotationHistory() {
           <span>Total</span>
           <span>Action</span>
         </div>
-        {rows.length === 0 ? (
+        {!isLoading && rows.length === 0 ? (
           <div className="table-row">
             <span>No quotations yet.</span>
           </div>
@@ -178,7 +190,7 @@ export default function QuotationHistory() {
                   onClick={() => {
                     const payload = buildPdfPayload(row);
                     sessionStorage.setItem("quotationPdfData", JSON.stringify(payload));
-                    window.open("/quotation-pdf", "_blank");
+                    setShowPdfPreview(true);
                   }}
                 >
                   Open PDF
@@ -192,6 +204,20 @@ export default function QuotationHistory() {
           ))
         )}
       </div>
+      {showPdfPreview && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="relative md:h-[30vh] md:w-[50vw] h-[40vh] w-[80vw] overflow-hidden rounded-lg bg-white shadow-xl">
+            <button
+              type="button"
+              onClick={() => setShowPdfPreview(false)}
+              className="absolute right-4 top-4 z-10 rounded bg-red-600 px-3 py-1 text-sm text-white"
+            >
+              Close
+            </button>
+            <QuotationPdf />
+          </div>
+        </div>
+      )}
     </section>
   );
 }

@@ -641,6 +641,7 @@
 import { useLocation, Link, useParams, useNavigate } from "react-router-dom";
 import { useMemo, useState, useEffect } from "react";
 import { databaseService } from "../database/databaseService";
+import QuotationPdf from "./QuotationPdf";
 import { v4 as uuidv4 } from 'uuid';
 
 const timeOptions = [
@@ -716,12 +717,15 @@ export default function CreateQuotation() {
   const [purchasePurpose, setPurchasePurpose] = useState("store");
   const [countryCode, setCountryCode] = useState("AE");
   const [quotationRefNo, setQuotationRefNo] = useState("");
+  const [isLoadingQuotation, setIsLoadingQuotation] = useState(false);
+  const [showPdfPreview, setShowPdfPreview] = useState(false);
   const [productId, setProductId] = useState("");
   const product = selectedProduct;
   const [customInstallationDate, setCustomInstallationDate] = useState("");
   const [customDays, setCustomDays] = useState("");
   const [customPurpose, setCustomPurpose] = useState("");
   const [quotationAmount, setQuotationAmount] = useState("");
+  const [services, setServices] = useState([""]);
   const [paymentTerms, setPaymentTerms] = useState([
     "Installation charges & first month rent payable upon installation.",
     "Monthly rent prepaid at beginning of every month.",
@@ -757,7 +761,10 @@ export default function CreateQuotation() {
         item.unitAmount === null ||
         item.discount === undefined ||
         item.discount === null ||
-        !item.capacity
+        !item.capacity ||
+        item.installationCharge === undefined ||
+        item.monthlyRent === undefined ||
+        item.monthsQty === undefined
     );
     if (!needsDefaults) return;
     setProducts((prev) =>
@@ -767,6 +774,9 @@ export default function CreateQuotation() {
         unitAmount: item.unitAmount ?? 0,
         discount: item.discount ?? 0,
         capacity: item.capacity || extractCapacity(item.name),
+        installationCharge: item.installationCharge ?? 0,
+        monthlyRent: item.monthlyRent ?? 0,
+        monthsQty: item.monthsQty ?? 0
       }))
     );
   }, [products]);
@@ -784,7 +794,11 @@ export default function CreateQuotation() {
       const qty = Number(item.qty || 0);
       const unit = Number(item.unitAmount || 0);
       const discount = Number(item.discount || 0);
-      return Math.max(0, qty * unit - discount);
+      const installationCharge = Number(item.installationCharge || 0);
+      const monthlyRent = Number(item.monthlyRent || 0);
+      const monthsQty = Number(item.monthsQty || 0);
+      const total = qty * unit - discount + installationCharge + monthlyRent * monthsQty;
+      return Math.max(0, total);
     });
   }, [products]);
 
@@ -840,6 +854,7 @@ export default function CreateQuotation() {
   useEffect(() => {
     if (!editId) return;
     let isActive = true;
+    setIsLoadingQuotation(true);
 
     databaseService
       .getQuotationById(editId)
@@ -859,14 +874,28 @@ export default function CreateQuotation() {
         setQuotationRefNo(data.quotationRefNo || "");
         setProductId(data.productId ? String(data.productId) : "");
         setSelectedProduct(data.productDetails || null);
+        setProducts(data.products?.length ? data.products : []);
+        setPaymentTerms(data.paymentTerms || []);
+        setTermsConditions(data.termsConditions || []);
+        setWarrantyItems(
+          (data.warrantyParts || []).map((item) => ({
+            title: item.description || "",
+            value: item.value || ""
+          }))
+        );
+        setServiceMaintenance(data.serviceMaintenance || []);
+        setServices(data.services || data.maintenanceService || []);
       })
       .catch((error) => {
         console.error("Failed to load quotation:", error);
+      })
+      .finally(() => {
+        if (isActive) setIsLoadingQuotation(false);
       });
 
-    return () => {
-      isActive = false;
-    };
+      return () => {
+        isActive = false;
+      };
   }, [editId]);
 
   // Calculate total amount based on quantity and price
@@ -946,11 +975,53 @@ export default function CreateQuotation() {
     ]);
   };
 
-  const removeServiceMaintenance = (index) => {
-    setServiceMaintenance((prev) => prev.filter((_, idx) => idx !== index));
-  };
+    const removeServiceMaintenance = (index) => {
+      setServiceMaintenance((prev) => prev.filter((_, idx) => idx !== index));
+    };
 
-  const handleCreateQuotation = async () => {
+    const buildPdfPayload = (refNoToUse) => {
+      const attendantName = clientAttendant.trim() || clientName.trim();
+        return {
+          date: new Date().toLocaleDateString(),
+          ref: refNoToUse || quotationRefNo || "",
+          companyName: clientName,
+          companyAddress: clientCity || "",
+          attentionTo: attendantName,
+          subject: "",
+          intro: "",
+          installationUnit: "",
+          monthlyRent: "",
+          products: products.map((item, index) => ({
+            name: item.name || "",
+            capacity: item.capacity || "",
+            qty: Number(item.qty || 0),
+            unitAmount: Number(item.unitAmount || 0),
+            discount: Number(item.discount || 0),
+            installationCharge: Number(item.installationCharge || 0),
+            monthlyRent: Number(item.monthlyRent || 0),
+            monthsQty: Number(item.monthsQty || 0),
+            total: productTotals[index] || 0,
+          })),
+          monthlyRentProducts: products.map((item, index) => ({
+            product: item.name || "",
+            monthlyRent: Number(item.monthlyRent || 0),
+            qtyMonths: Number(item.monthsQty || 0),
+            totalAmount: Number(item.monthlyRent || 0) * Number(item.monthsQty || 0),
+          })),
+          paymentTerms,
+          maintenanceService: services,
+          serviceMaintenance,
+          otherTerms: termsConditions,
+          warrantyParts: warrantyItems.map((item) => ({
+            description: item.title,
+            value: item.value,
+          })),
+        clientCity: clientCity || "",
+        clientAttendant: attendantName,
+      };
+    };
+
+    const handleCreateQuotation = async ({ navigateToPdf = false } = {}) => {
     // Validate required fields
     if (!clientName) {
       setSubmitError("Please enter client name");
@@ -997,24 +1068,48 @@ export default function CreateQuotation() {
           }
         : undefined;
       
-      const quotationData = {
-        id: quotationId,
-        clientName,
-        quantity: products.reduce((sum, item) => sum + Number(item.qty || 0), 0),
-        serviceDays: serviceDays === "custom" ? customDays : serviceDays,
-        installationPeriod: installationPeriod === "custom_date" 
-          ? customInstallationDate 
-          : installationPeriod,
-        purchasePurpose: purchasePurpose === "other" ? customPurpose : purchasePurpose,
-        quotationAmount: Number(grandTotal || 0),
-        totalAmount: Number(grandTotal || 0),
-        productId: String(primaryId ?? ""),
-        quotationRefNo: refNoToUse,
-        countryCode,
-        productDetails,
-        status: "draft",
-        createdAt: nowIso,
-        updatedAt: nowIso,
+        const quotationData = {
+          id: quotationId,
+          clientName,
+          clientAttendant: clientAttendant.trim() || clientName.trim(),
+          clientCity: clientCity.trim(),
+          quantity: products.reduce((sum, item) => sum + Number(item.qty || 0), 0),
+          serviceDays: serviceDays === "custom" ? customDays : serviceDays,
+          installationPeriod: installationPeriod === "custom_date" 
+            ? customInstallationDate 
+            : installationPeriod,
+          purchasePurpose: purchasePurpose === "other" ? customPurpose : purchasePurpose,
+          quotationAmount: Number(grandTotal || 0),
+          totalAmount: Number(grandTotal || 0),
+          productId: String(primaryId ?? ""),
+          quotationRefNo: refNoToUse,
+          countryCode,
+          productDetails,
+          products: products.map((item, index) => ({
+            id: String(item.productId ?? item.id ?? ""),
+            name: item.name || "",
+            capacity: item.capacity || "",
+            qty: Number(item.qty || 0),
+            unitAmount: Number(item.unitAmount || 0),
+            discount: Number(item.discount || 0),
+            installationCharge: Number(item.installationCharge || 0),
+            monthlyRent: Number(item.monthlyRent || 0),
+            monthsQty: Number(item.monthsQty || 0),
+            total: productTotals[index] || 0,
+            productDetails: item.productDetails || {}
+          })),
+          services,
+          paymentTerms,
+          termsConditions,
+          warrantyParts: warrantyItems.map((item) => ({
+            description: item.title,
+            value: item.value
+          })),
+          serviceMaintenance,
+          maintenanceService: services,
+          status: "draft",
+          createdAt: nowIso,
+          updatedAt: nowIso,
         _deleted: false,
         _attachments: {},
         _meta: {
@@ -1024,47 +1119,14 @@ export default function CreateQuotation() {
 
       console.log("Creating quotation with data:", quotationData);
       
-      const attendantName = clientAttendant.trim() || clientName.trim();
-      const pdfPayload = {
-        date: new Date().toLocaleDateString(),
-        ref: refNoToUse,
-        companyName: clientName,
-        companyAddress: clientCity || "",
-        attentionTo: attendantName,
-        subject: "",
-        intro: "",
-        installationUnit: "",
-        monthlyRent: "",
-        products: products.map((item, index) => ({
-          name: item.name || "",
-          capacity: item.capacity || "",
-          qty: Number(item.qty || 0),
-          unitAmount: Number(item.unitAmount || 0),
-          discount: Number(item.discount || 0),
-          total: productTotals[index] || 0,
-        })),
-            monthlyRentProducts: products.map((item, index) => ({
-              product: item.name || "",
-              monthlyRent: "",
-              qtyMonths: Number(item.qty || 0),
-              totalAmount: productTotals[index] || 0,
-            })),
-            paymentTerms: [],
-            maintenanceService: [],
-            serviceMaintenance,
-            otherTerms: termsConditions,
-            warrantyParts: warrantyItems.map((item) => ({
-              description: item.title,
-              value: item.value,
-            })),
-        clientCity: clientCity || "",
-        clientAttendant: attendantName,
-      };
-      try {
-        sessionStorage.setItem("quotationPdfData", JSON.stringify(pdfPayload));
-      } catch (error) {
-        console.error("Failed to store PDF data", error);
-      }
+        const pdfPayload = buildPdfPayload(refNoToUse);
+        if (navigateToPdf) {
+          try {
+            sessionStorage.setItem("quotationPdfData", JSON.stringify(pdfPayload));
+          } catch (error) {
+            console.error("Failed to store PDF data", error);
+          }
+        }
 
       const result = editId
         ? await databaseService.updateQuotation(editId, quotationData)
@@ -1072,25 +1134,43 @@ export default function CreateQuotation() {
       
       setSubmitSuccess(true);
       
-      // Reset form
-      if (!editId) {
-        setClientName("");
-        setQuantity(1);
-        setServiceDays("3");
-        setInstallationPeriod("immediate");
-        setPurchasePurpose("store");
-        setCustomInstallationDate("");
-        setCustomDays("");
-        setCustomPurpose("");
-        setQuotationAmount("");
-        setQuotationRefNo("");
-        setCountryCode("AE");
-      }
+        // Reset form
+        if (!editId && !navigateToPdf) {
+          setClientName("");
+          setQuantity(1);
+          setServiceDays("3");
+          setInstallationPeriod("immediate");
+          setPurchasePurpose("store");
+          setCustomInstallationDate("");
+          setCustomDays("");
+          setCustomPurpose("");
+          setQuotationAmount("");
+          setQuotationRefNo("");
+          setCountryCode("AE");
+          setServices([""]);
+          setPaymentTerms([
+            "Installation charges & first month rent payable upon installation.",
+            "Monthly rent prepaid at beginning of every month.",
+            "Online Transfer / Cheque accepted."
+          ]);
+          setTermsConditions(["Quotation validity: 30 days from the date of issue."]);
+          setWarrantyItems([
+            { title: "Warranty", value: "Lifetime" },
+            { title: "RO Unit Replacement", value: "36 Months" }
+          ]);
+          setServiceMaintenance([
+            { item: "PPM (Periodical Service)", rentro: "Every 60 Days", others: "120 or 180 Days" },
+            { item: "Teardown Services", rentro: "6 Services", others: "1 or 2" }
+          ]);
+        }
       
       // Auto-hide success message
       setTimeout(() => setSubmitSuccess(false), 3000);
       
-      console.log("Quotation created successfully:", result);
+        console.log("Quotation created successfully:", result);
+        if (navigateToPdf) {
+          setShowPdfPreview(true);
+        }
 
       if (editId) {
         navigate("/quotation-history");
@@ -1112,12 +1192,17 @@ export default function CreateQuotation() {
   };
 
   return (
-    <section className="min-h-screen bg-gray-50 p-4 md:p-6">
-      <div className="max-w-7xl mx-auto">
-        <div className="mb-8">
-          <h2 className="text-2xl md:text-3xl font-bold text-gray-900">{pageTitle}</h2>
-          <p className="text-gray-600 mt-2">Fill in client details and confirm the selected product.</p>
-        </div>
+      <section className="min-h-screen bg-gray-50 p-4 md:p-6">
+        <div className="max-w-7xl mx-auto">
+          <div className="mb-8">
+            <h2 className="text-2xl md:text-3xl font-bold text-gray-900">{pageTitle}</h2>
+            <p className="text-gray-600 mt-2">Fill in client details and confirm the selected product.</p>
+          </div>
+          {isLoadingQuotation && (
+            <div className="mb-4 rounded border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">
+              Loading quotation...
+            </div>
+          )}
 
         {/* Success Message */}
         {submitSuccess && (
@@ -1144,7 +1229,7 @@ export default function CreateQuotation() {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6" onKeyPress={handleKeyPress}>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6" onKeyPress={handleKeyPress}>
             {/* Selected Products */}
             <div className="bg-white rounded-xl shadow-md p-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
@@ -1187,14 +1272,7 @@ export default function CreateQuotation() {
                           <p className="text-gray-600 mb-3 line-clamp-2">
                             {item.description}
                           </p>
-                          <div className="flex items-center justify-between">
-                            <span className="text-green-600 font-bold text-lg">
-                              {itemPriceLabel}
-                            </span>
-                            <span className="text-sm text-gray-500">
-                              ID: {item.productId ?? item.id}
-                            </span>
-                          </div>
+                          
                         </div>
                       </div>
                     );
@@ -1204,7 +1282,7 @@ export default function CreateQuotation() {
             </div>
 
             {/* Quotation Form */}
-            <div className="bg-white rounded-xl shadow-md p-6">
+            <div className="bg-white rounded-xl shadow-md p-6 col-span-2">
               {/* Client Name */}
               <div className="mb-6">
                 <label htmlFor="client-name" className="block text-sm font-medium text-gray-900 mb-2">
@@ -1309,6 +1387,18 @@ export default function CreateQuotation() {
                           />
                         </label>
                         <label className="text-xs text-gray-500">
+                          Installation Charge
+                          <input
+                            className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                            type="number"
+                            min="0"
+                            value={item.installationCharge}
+                            onChange={(event) =>
+                              updateProductField(index, "installationCharge", event.target.value)
+                            }
+                          />
+                        </label>
+                        <label className="text-xs text-gray-500">
                           Discount
                           <input
                             className="mt-1 w-full rounded border px-2 py-1 text-sm"
@@ -1317,6 +1407,30 @@ export default function CreateQuotation() {
                             value={item.discount}
                             onChange={(event) =>
                               updateProductField(index, "discount", event.target.value)
+                            }
+                          />
+                        </label>
+                        <label className="text-xs text-gray-500">
+                          Monthly Rent
+                          <input
+                            className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                            type="number"
+                            min="0"
+                            value={item.monthlyRent}
+                            onChange={(event) =>
+                              updateProductField(index, "monthlyRent", event.target.value)
+                            }
+                          />
+                        </label>
+                        <label className="text-xs text-gray-500">
+                          Months Qty
+                          <input
+                            className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                            type="number"
+                            min="0"
+                            value={item.monthsQty}
+                            onChange={(event) =>
+                              updateProductField(index, "monthsQty", event.target.value)
                             }
                           />
                         </label>
@@ -1464,6 +1578,40 @@ export default function CreateQuotation() {
                     />
                   </div>
                 )}
+              </div>
+
+              <div className="mb-8">
+                <div className="flex items-center justify-between mb-2">
+                  <label className="block text-sm font-medium text-gray-900">
+                    Services
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => addListItem(setServices)}
+                    className="px-3 py-1 rounded bg-blue-600 text-white text-sm"
+                  >
+                    Add
+                  </button>
+                </div>
+                {services.map((term, index) => (
+                  <div key={index} className="flex items-center gap-2 mb-2">
+                    <input
+                      type="text"
+                      value={term}
+                      onChange={(event) =>
+                        updateListItem(setServices)(index, event.target.value)
+                      }
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeListItem(setServices, index)}
+                      className="px-2 py-1 text-xs rounded bg-red-500 text-white"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
               </div>
 
               <div className="mb-8">
@@ -1654,60 +1802,31 @@ export default function CreateQuotation() {
                   editId ? 'Update Quotation' : 'Create Quotation'
                 )}
               </button>
-              <button
+              {/* <button
                 type="button"
-                onClick={() => {
-                  const attendantName = clientAttendant.trim() || clientName.trim();
-                  const pdfPayload = {
-                    date: new Date().toLocaleDateString(),
-                    ref: quotationRefNo || "",
-                    companyName: clientName,
-                    companyAddress: clientCity || "",
-                    attentionTo: attendantName,
-                    subject: "",
-                    intro: "",
-                    installationUnit: "",
-                    monthlyRent: "",
-                    products: products.map((item, index) => ({
-                      name: item.name || "",
-                      capacity: item.capacity || "",
-                      qty: Number(item.qty || 0),
-                      unitAmount: Number(item.unitAmount || 0),
-                      discount: Number(item.discount || 0),
-                      total: productTotals[index] || 0,
-                    })),
-                    monthlyRentProducts: products.map((item, index) => ({
-                      product: item.name || "",
-                      monthlyRent: "",
-                      qtyMonths: Number(item.qty || 0),
-                      totalAmount: productTotals[index] || 0,
-                    })),
-                    paymentTerms: [],
-                    maintenanceService: [],
-                    serviceMaintenance,
-                    otherTerms: termsConditions,
-                    warrantyParts: warrantyItems.map((item) => ({
-                      description: item.title,
-                      value: item.value,
-                    })),
-                    clientCity: clientCity || "",
-                    clientAttendant: attendantName,
-                  };
-                  try {
-                    sessionStorage.setItem("quotationPdfData", JSON.stringify(pdfPayload));
-                  } catch (error) {
-                    console.error("Failed to store PDF data", error);
-                  }
-                  navigate("/quotation-pdf");
-                }}
+                onClick={() => handleCreateQuotation({ navigateToPdf: true })}
                 className="mt-3 w-full py-3 px-4 rounded-lg font-medium transition-colors bg-green-600 text-white hover:bg-green-700"
               >
                 Generate PDF
-              </button>
+              </button> */}
             </div>
           </div>
         )}
-      </div>
-    </section>
+        </div>
+        {showPdfPreview && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+            <div className="relative md:h-[30vh] md:w-[50vw] h-[40vh] w-[80vw] overflow-hidden rounded-lg bg-white shadow-xl">
+              <button
+                type="button"
+                onClick={() => setShowPdfPreview(false)}
+                className="absolute right-4 top-4 z-10 rounded bg-red-600 px-3 py-1 text-sm text-white"
+              >
+                Close
+              </button>
+              <QuotationPdf />
+            </div>
+          </div>
+        )}
+      </section>
   );
 }
