@@ -6,7 +6,7 @@ export default function Header() {
   return (
     <header className="app-header">
       <div className="brand">
-        <img className="h-12 w-auto" src={logo} alt="" />
+        <img className="h-14 w-auto" src={logo} alt="" />
       </div>
       <nav className="nav-links">
         <NavLink to="/" end className="nav-btn">
