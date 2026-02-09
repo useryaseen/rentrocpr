@@ -92,6 +92,7 @@ export default function QuotationHistory() {
       warrantyParts: data.warrantyParts || [],
       clientCity: data.clientCity || "",
       clientAttendant: data.clientAttendant || "",
+      purchasePurpose: data.purchasePurpose || "",
     };
   };
 

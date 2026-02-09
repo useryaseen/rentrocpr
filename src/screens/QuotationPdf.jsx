@@ -843,6 +843,7 @@ const QuotationPdf = () => {
             ? parsed.monthlyRentProducts
             : prev.monthlyRentProducts,
           paymentTerms: parsed.paymentTerms?.length ? parsed.paymentTerms : prev.paymentTerms,
+          purchasePurpose: parsed.purchasePurpose || prev.purchasePurpose,
           maintenanceService: parsed.maintenanceService?.length
             ? parsed.maintenanceService
             : prev.maintenanceService,
@@ -1184,12 +1185,15 @@ const QuotationPdf = () => {
               </div>
 
               <div className="subject">Subject: Water Purification System - Monthly Rent- {form?.products.map((product) => product.name).join(", ")}</div>
-              <div className="subject" >Project / Store Br: <span class="text-red-500">{form?.clientCity|| "N/A"}</span></div>
+              <div className="subject" >Project / {form?.purchasePurpose} : <span class="text-red-500">{form?.clientCity|| "N/A"}</span></div>
 
-              <p className="mb-6 text-sm">
+              <p className="mb-1 text-sm">
                 Dear Sir/Madam,<br />
 With reference to your enquiry, regarding the supply of Water Purification Systems on Rental
               </p>
+              <p className="mb-6 text-lg">Plan for your well-known organization. We hereby submitting our quote for {form?.purchasePurpose}  at 
+<span class="text-red-500 subject">{" "+form?.clientCity}</span> as follows:
+</p>
 
               <div className="section-title">DELIVERY & INSTALLATION</div>
               <table>

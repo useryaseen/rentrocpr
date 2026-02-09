@@ -134,25 +134,33 @@
 
 
 import { useMemo, useState, useEffect } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
 
 export default function NewQuotation() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [products, setProducts] = useState([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [selectedProducts, setSelectedProducts] = useState([]);
+  const [lockedProductIds, setLockedProductIds] = useState([]);
 
   const getProducts = async () => {
     try {
       setLoading(true);
       setError("");
-      const response = await axios.get(
-        "https://api.rentro.sa/api/v1/products"
-      );
-      setProducts(response?.data || []);
+      const cached = sessionStorage.getItem("cachedProducts");
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        setProducts(parsed || []);
+        return;
+      }
+      const response = await axios.get("https://api.rentro.sa/api/v1/products");
+      const list = response?.data || [];
+      setProducts(list);
+      sessionStorage.setItem("cachedProducts", JSON.stringify(list));
     } catch (error) {
       console.error("Failed to fetch products", error);
       setError("Failed to load products. Please try again.");
@@ -175,6 +183,7 @@ export default function NewQuotation() {
   }, [search, products]);
 
   const toggleProduct = (product) => {
+    if (lockedProductIds.includes(product.productId)) return;
     setSelectedProducts((prev) => {
       const exists = prev.find((item) => item.productId === product.productId);
       if (exists) {
@@ -196,6 +205,33 @@ export default function NewQuotation() {
     }
     navigate("/create-quotation", { state: { products: selectedProducts } });
   };
+
+  useEffect(() => {
+    const incomingProductsFromState = location.state?.selectedProducts;
+    let initialSelectedProducts = [];
+
+    if (incomingProductsFromState && incomingProductsFromState.length > 0) {
+      initialSelectedProducts = incomingProductsFromState;
+    } else {
+      try {
+        const stored = sessionStorage.getItem("selectedProducts");
+        initialSelectedProducts = stored ? JSON.parse(stored) : [];
+      } catch (error) {
+        console.error("Failed to read stored selected products", error);
+        initialSelectedProducts = [];
+      }
+    }
+
+    setSelectedProducts(initialSelectedProducts);
+    setLockedProductIds([]); // Per user request, do not lock/disable products
+
+    try {
+      sessionStorage.setItem("selectedProducts", JSON.stringify(initialSelectedProducts));
+    } catch (error) {
+      console.error("Failed to save selected products to session storage", error);
+    }
+
+  }, [location.state]);
 
   // Simple SVG icons to avoid external dependencies
   const Icons = {
@@ -321,7 +357,6 @@ export default function NewQuotation() {
                       <label className="flex items-center gap-2 text-sm text-gray-700">
                         <input
                           type="checkbox"
-                         
                           checked={selectedProducts.some(
                             (item) => item.productId === product.productId
                           )}
@@ -350,7 +385,12 @@ export default function NewQuotation() {
                         <button
                           type="button"
                           onClick={() => toggleProduct(product)}
-                          className="px-4 py-2 bg-blue-500 w-full text-white text-sm font-medium rounded hover:bg-blue-600"
+                          
+                          className={`px-4 py-2 w-full text-white text-sm font-medium rounded ${
+                            lockedProductIds.includes(product.productId)
+                              ? "bg-blue-200 cursor-not-allowed"
+                              : "bg-blue-500 hover:bg-blue-600"
+                          }`}
                         >
                           {selectedProducts.some(
                             (item) => item.productId === product.productId

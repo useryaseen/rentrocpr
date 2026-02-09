@@ -662,13 +662,13 @@ const installationPeriods = [
 ];
 
 const purchasePurposes = [
-  { label: "Store", value: "store" },
-  { label: "Supermarket", value: "supermarket" },
-  { label: "Warehouse", value: "warehouse" },
-  { label: "Office", value: "office" },
-  { label: "Restaurant", value: "restaurant" },
-  { label: "Hotel", value: "hotel" },
-  { label: "Residential", value: "residential" },
+  { label: "Store", value: "Store" },
+  { label: "Supermarket", value: "Supermarket" },
+  { label: "Warehouse", value: "Warehouse" },
+  { label: "Office", value: "Office" },
+  { label: "Restaurant", value: "Restaurant" },
+  { label: "Hotel", value: "Hotel" },
+  { label: "Residential", value: "Residential" },
   { label: "Other", value: "other" },
 ];
 
@@ -721,6 +721,7 @@ export default function CreateQuotation() {
   const [showPdfPreview, setShowPdfPreview] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
   const [productId, setProductId] = useState("");
+  const [formCacheLoaded, setFormCacheLoaded] = useState(false);
   const product = selectedProduct;
   const [customInstallationDate, setCustomInstallationDate] = useState("");
   const [customDays, setCustomDays] = useState("");
@@ -748,45 +749,28 @@ export default function CreateQuotation() {
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const pageTitle = editId ? "Edit Quotation" : "Create Quotation";
 
-  useEffect(() => {
-    const extractCapacity = (name) => {
-      if (!name) return "";
-      const match = String(name).match(/(\d+\s*(?:GPD|TPD|LPH|L\/H|LPM))/i);
-      return match ? match[0].toUpperCase() : "";
-    };
-    const needsDefaults = products.some(
-      (item) =>
-        item.qty === undefined ||
-        item.qty === null ||
-        item.unitAmount === undefined ||
-        item.unitAmount === null ||
-        item.discount === undefined ||
-        item.discount === null ||
-        !item.capacity ||
-        item.installationCharge === undefined ||
-        item.monthlyRent === undefined ||
-        item.monthsQty === undefined
-    );
-    if (!needsDefaults) return;
-    setProducts((prev) =>
-      prev.map((item) => ({
-        ...item,
-        qty: item.qty ?? 1,
-        unitAmount: item.unitAmount ?? 0,
-        discount: item.discount ?? 0,
-        capacity: item.capacity || extractCapacity(item.name),
-        installationCharge: item.installationCharge ?? 0,
-        monthlyRent: item.monthlyRent ?? 0,
-        monthsQty: item.monthsQty ?? 0
-      }))
-    );
-  }, [products]);
+  // This useEffect was causing an infinite loop and has been removed.
+  // The logic has been moved to the useEffect that handles location state changes.
 
   const updateProductField = (index, key, value) => {
     setProducts((prev) => {
       const next = [...prev];
       next[index] = { ...next[index], [key]: value };
       return next;
+    });
+  };
+
+  const handleRemoveProduct = (productIdToRemove) => {
+    setProducts(prevProducts => {
+      const updatedProducts = prevProducts.filter(p => (p.productId ?? p.id) !== productIdToRemove);
+      
+      sessionStorage.setItem("selectedProducts", JSON.stringify(updatedProducts));
+
+      if (selectedProduct && (selectedProduct.productId ?? selectedProduct.id) === productIdToRemove) {
+        setSelectedProduct(updatedProducts.length > 0 ? updatedProducts[0] : null);
+      }
+
+      return updatedProducts;
     });
   };
 
@@ -830,31 +814,135 @@ export default function CreateQuotation() {
   }, [product]);
 
   useEffect(() => {
-    if (location.state?.products && location.state.products.length > 0) {
-      try {
-        sessionStorage.setItem(
-          "selectedProducts",
-          JSON.stringify(location.state.products)
-        );
-        setProducts(location.state.products);
-        setSelectedProduct(location.state.products[0]);
-      } catch (error) {
-        console.error("Failed to store products", error);
-      }
+    const incomingProducts = location.state?.products;
+
+    if (incomingProducts) {
+      const extractCapacity = (name) => {
+        if (!name) return "";
+        const match = String(name).match(/(\d+\s*(?:GPD|TPD|LPH|L\/H|LPM))/i);
+        return match ? match[0].toUpperCase() : "";
+      };
+
+      setProducts(prevProducts => {
+        const newProductList = [...prevProducts];
+
+        incomingProducts.forEach(p => {
+          const pid = p.productId ?? p.id;
+          if (!newProductList.find(m => (m.productId ?? m.id) === pid)) {
+            const productWithDefaults = {
+              ...p,
+              qty: p.qty ?? 1,
+              unitAmount: p.unitAmount ?? 0,
+              discount: p.discount ?? 0,
+              capacity: p.capacity || extractCapacity(p.name),
+              installationCharge: p.installationCharge ?? 0,
+              monthlyRent: p.monthlyRent ?? 0,
+              monthsQty: p.monthsQty ?? 0
+            };
+            newProductList.push(productWithDefaults);
+          }
+        });
+        
+        if (newProductList.length > 0 && !selectedProduct) {
+          setSelectedProduct(newProductList[0]);
+        } else if (newProductList.length === 0) {
+          setSelectedProduct(null);
+        }
+        
+        sessionStorage.setItem("selectedProducts", JSON.stringify(newProductList));
+        return newProductList;
+      });
+    }
+  }, [location.state, location.key]);
+
+  useEffect(() => {
+    // If we have products coming from the navigation state, we should not load from cache,
+    // as the navigation state is more up-to-date.
+    if (location.state?.products?.length > 0) {
+      setFormCacheLoaded(true);
       return;
     }
-    if (!location.state?.product) return;
+
+    if (editId || formCacheLoaded) return;
     try {
-      sessionStorage.setItem(
-        "selectedProduct",
-        JSON.stringify(location.state.product)
-      );
-      setSelectedProduct(location.state.product);
-      setProducts([location.state.product]);
+      const raw = sessionStorage.getItem("quotationFormCache");
+      if (!raw) {
+        setFormCacheLoaded(true);
+        return;
+      }
+      const cached = JSON.parse(raw);
+      setClientName(cached.clientName || "");
+      setClientAttendant(cached.clientAttendant || "");
+      setClientCity(cached.clientCity || "");
+      setCountryCode(cached.countryCode || "AE");
+      setQuotationRefNo(cached.quotationRefNo || "");
+      setServiceDays(cached.serviceDays || "3");
+      setInstallationPeriod(cached.installationPeriod || "immediate");
+      setPurchasePurpose(cached.purchasePurpose || "store");
+      setCustomInstallationDate(cached.customInstallationDate || "");
+      setCustomDays(cached.customDays || "");
+      setCustomPurpose(cached.customPurpose || "");
+      setProducts(cached.products || []);
+      setServices(cached.services || [""]);
+      setPaymentTerms(cached.paymentTerms || []);
+      setTermsConditions(cached.termsConditions || []);
+      setWarrantyItems(cached.warrantyItems || []);
+      setServiceMaintenance(cached.serviceMaintenance || []);
     } catch (error) {
-      console.error("Failed to store product", error);
+      console.error("Failed to load form cache", error);
+    } finally {
+      setFormCacheLoaded(true);
     }
-  }, [location.key]);
+  }, [editId, formCacheLoaded, location.state]);
+
+  useEffect(() => {
+    if (editId) return;
+    if (!formCacheLoaded) return;
+    const payload = {
+      clientName,
+      clientAttendant,
+      clientCity,
+      countryCode,
+      quotationRefNo,
+      serviceDays,
+      installationPeriod,
+      purchasePurpose,
+      customInstallationDate,
+      customDays,
+      customPurpose,
+      products,
+      services,
+      paymentTerms,
+      termsConditions,
+      warrantyItems,
+      serviceMaintenance
+    };
+    try {
+      sessionStorage.setItem("quotationFormCache", JSON.stringify(payload));
+    } catch (error) {
+      console.error("Failed to cache form", error);
+    }
+  }, [
+    editId,
+    formCacheLoaded,
+    clientName,
+    clientAttendant,
+    clientCity,
+    countryCode,
+    quotationRefNo,
+    serviceDays,
+    installationPeriod,
+    purchasePurpose,
+    customInstallationDate,
+    customDays,
+    customPurpose,
+    products,
+    services,
+    paymentTerms,
+    termsConditions,
+    warrantyItems,
+    serviceMaintenance
+  ]);
 
   useEffect(() => {
     if (!editId) return;
@@ -871,7 +959,15 @@ export default function CreateQuotation() {
         setQuantity(Number(data.quantity || 1));
         setServiceDays(data.serviceDays || "3");
         setInstallationPeriod(data.installationPeriod || "immediate");
-        setPurchasePurpose(data.purchasePurpose || "store");
+        const loadedPurpose = data.purchasePurpose || "store";
+        const isStandardPurpose = purchasePurposes.some(p => p.value === loadedPurpose);
+        if (isStandardPurpose) {
+          setPurchasePurpose(loadedPurpose);
+          setCustomPurpose("");
+        } else {
+          setPurchasePurpose("other");
+          setCustomPurpose(loadedPurpose);
+        }
         setQuotationAmount(
           data.quotationAmount !== undefined ? String(data.quotationAmount) : ""
         );
@@ -1024,6 +1120,7 @@ export default function CreateQuotation() {
           })),
         clientCity: clientCity || "",
         clientAttendant: attendantName,
+        purchasePurpose: purchasePurpose === "other" ? customPurpose : purchasePurpose,
       };
     };
 
@@ -1167,10 +1264,8 @@ export default function CreateQuotation() {
             { title: "Warranty", value: "Lifetime" },
             { title: "RO Unit Replacement", value: "36 Months" }
           ]);
-          setServiceMaintenance([
-            { item: "PPM (Periodical Service)", rentro: "Every 60 Days", others: "120 or 180 Days" },
-            { item: "Teardown Services", rentro: "6 Services", others: "1 or 2" }
-          ]);
+          sessionStorage.removeItem("quotationFormCache");
+          sessionStorage.removeItem("selectedProducts"); // Clear selected products cache for NewQuotation
         }
       
         // Auto-hide success message
@@ -1279,14 +1374,21 @@ export default function CreateQuotation() {
                             </div>
                           )}
                         </div>
-                        <div className="flex-1">
-                          <h4 className="text-xl font-semibold text-gray-900 mb-2">
+                        <div className="flex-1 relative">
+                          <h4 className="text-xl font-semibold text-gray-900 mb-2 pr-8">
                             {item.name}
                           </h4>
                           <p className="text-gray-600 mb-3 line-clamp-2">
                             {item.description}
                           </p>
-                          
+                          <button
+                            type="button"
+                            onClick={() => handleRemoveProduct(item.productId ?? item.id)}
+                            className="absolute top-0 right-0 p-1 text-red-500 hover:text-red-700"
+                            aria-label="Remove Product"
+                          >
+                            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" /></svg>
+                          </button>
                         </div>
                       </div>
                     );
@@ -1811,6 +1913,57 @@ export default function CreateQuotation() {
                 ) : (
                   editId ? 'Update Quotation' : 'Create Quotation'
                 )}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setClientName("");
+                  setClientAttendant("");
+                  setClientCity("");
+                  setQuantity(1);
+                  setServiceDays("3");
+                  setInstallationPeriod("immediate");
+                  setPurchasePurpose("store");
+                  setCustomInstallationDate("");
+                  setCustomDays("");
+                  setCustomPurpose("");
+                  setQuotationAmount("");
+                  setQuotationRefNo("");
+                  setCountryCode("AE");
+                  setServices([""]);
+                  setPaymentTerms([
+                    "Installation charges & first month rent payable upon installation.",
+                    "Monthly rent prepaid at beginning of every month.",
+                    "Online Transfer / Cheque accepted."
+                  ]);
+                  setTermsConditions(["Quotation validity: 30 days from the date of issue."]);
+                  setWarrantyItems([
+                    { title: "Warranty", value: "Lifetime" },
+                    { title: "RO Unit Replacement", value: "36 Months" }
+                  ]);
+                  setServiceMaintenance([
+                    { item: "PPM (Periodical Service)", rentro: "Every 60 Days", others: "120 or 180 Days" },
+                    { item: "Teardown Services", rentro: "6 Services", others: "1 or 2" }
+                  ]);
+                  sessionStorage.removeItem("quotationFormCache");
+                }}
+                className="mt-3 w-full py-3 px-4 rounded-lg font-medium transition-colors bg-gray-200 text-gray-700 hover:bg-gray-300"
+              >
+                Reset Form
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  try {
+                    sessionStorage.setItem("selectedProducts", JSON.stringify(products));
+                  } catch (error) {
+                    console.error("Failed to store selected products", error);
+                  }
+                  navigate("/new-quotation", { state: { selectedProducts: products } });
+                }}
+                className="mt-3 w-full py-3 px-4 rounded-lg font-medium transition-colors bg-blue-100 text-blue-700 hover:bg-blue-200"
+              >
+                Add More Products
               </button>
               {/* <button
                 type="button"
