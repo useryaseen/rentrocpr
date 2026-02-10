@@ -1062,12 +1062,12 @@ const QuotationPdf = () => {
               background-color: white;
               color: black;
               font-weight: bold;
-              padding: 8px 6px;
+              padding: 2px 6px;
               text-align: left;
               border: 1px solid black;
             }
             table td {
-              padding: 8px 6px;
+              padding: 2px 6px;
               border: 1px solid #cbd5e1;
             }
             table tr:nth-child(even) {
@@ -1084,9 +1084,9 @@ const QuotationPdf = () => {
               font-size: 14px;
               font-weight: bold;
               color: red;
-              margin: 20px 0 10px 0;
+              margin: 6px 0 6px 0;
               text-align: center;
-              padding-bottom: 5px;
+              padding-bottom: 2px;
               text-decoration: underline;
             }
             .terms-list {
@@ -1246,7 +1246,7 @@ const QuotationPdf = () => {
 With reference to your enquiry, regarding the supply of Water Purification Systems on {form?.quotationType || "Rental "}, we are pleased to submit our most competitive quotation for your kind consideration.
               </p>
               <p className="mb-6 text-lg">Plan for your well-known organization. We hereby submitting our quote for {form?.purchasePurpose}  at 
-<span class="text-red-500 subject">{" "+form?.clientCity}</span> as follows:
+<span className="text-red-500">{" "+form?.clientCity}</span> as follows:
 </p>
 
 
