@@ -957,16 +957,19 @@ const QuotationPdf = () => {
             }
             .pdf-page {
               width: 210mm;
-              min-height: 297mm;
+              height: 297mm;
               position: relative;
               background-image: url('${bgImage}');
               background-size: cover;
               background-position: center;
               background-repeat: no-repeat;
+              page-break-after: always;
             }
             .page-content {
               padding: 40mm 20mm 30mm 20mm;
-              min-height: 297mm;
+              height: 297mm;
+              box-sizing: border-box;
+              overflow: hidden;
             }
             .page-break {
               page-break-before: always;
@@ -1057,6 +1060,15 @@ const QuotationPdf = () => {
               margin: 15px 0;
               font-size: 11px;
               background: white;
+              page-break-inside: auto;
+            }
+            tr {
+              page-break-inside: avoid;
+              break-inside: avoid;
+            }
+            .page-content > * {
+              break-inside: avoid;
+              page-break-inside: avoid;
             }
             table th {
               background-color: white;
@@ -1191,7 +1203,87 @@ const QuotationPdf = () => {
             }
           </style>
         </head>
-        <body>${element.outerHTML}</body>
+        <body>
+          ${element.outerHTML}
+          <script>
+            window.addEventListener('load', function () {
+              var pages = Array.from(document.querySelectorAll('.pdf-page'));
+              var pageBreaks = Array.from(document.querySelectorAll('.page-break'));
+              pageBreaks.forEach(function (el) { el.remove(); });
+
+              function createPageAfter(referencePage, templatePage) {
+                var newPage = templatePage.cloneNode(false);
+                newPage.classList.add('page-break');
+                var newContent = templatePage.querySelector('.page-content').cloneNode(false);
+                newPage.appendChild(newContent);
+                referencePage.parentNode.insertBefore(newPage, referencePage.nextSibling);
+                return { page: newPage, content: newContent };
+              }
+
+              function splitTable(table, currentPage, currentContent, templatePage) {
+                var thead = table.querySelector('thead');
+                var rows = Array.from(table.querySelectorAll('tbody tr'));
+
+                function makeTable() {
+                  var newTable = table.cloneNode(false);
+                  if (thead) {
+                    newTable.appendChild(thead.cloneNode(true));
+                  }
+                  var newTbody = document.createElement('tbody');
+                  newTable.appendChild(newTbody);
+                  return { table: newTable, tbody: newTbody };
+                }
+
+                var currentTable = makeTable();
+                currentContent.appendChild(currentTable.table);
+
+                rows.forEach(function (row) {
+                  currentTable.tbody.appendChild(row);
+                  if (currentContent.scrollHeight > currentContent.clientHeight) {
+                    currentTable.tbody.removeChild(row);
+                    var next = createPageAfter(currentPage, templatePage);
+                    currentPage = next.page;
+                    currentContent = next.content;
+                    currentTable = makeTable();
+                    currentContent.appendChild(currentTable.table);
+                    currentTable.tbody.appendChild(row);
+                  }
+                });
+                return { page: currentPage, content: currentContent };
+              }
+
+              pages.forEach(function (page) {
+                if (page.hasAttribute('data-no-split')) return;
+                var content = page.querySelector('.page-content');
+                if (!content) return;
+
+                var children = Array.from(content.children);
+                content.innerHTML = '';
+                var currentPage = page;
+                var currentContent = content;
+
+                children.forEach(function (child) {
+                  currentContent.appendChild(child);
+                  if (currentContent.scrollHeight <= currentContent.clientHeight) return;
+
+                  currentContent.removeChild(child);
+
+                  if (child.tagName === 'TABLE') {
+                    var result = splitTable(child, currentPage, currentContent, page);
+                    currentPage = result.page;
+                    currentContent = result.content;
+                    return;
+                  }
+
+                  var next = createPageAfter(currentPage, page);
+                  currentPage = next.page;
+                  currentContent = next.content;
+                  currentContent.appendChild(child);
+                });
+              });
+            });
+          </script>
+        </body>
       </html>
     `);
     printWindow.document.close();
@@ -1217,7 +1309,7 @@ const QuotationPdf = () => {
       <div className="bg-white hidden rounded-lg shadow-xl p-2 mb-6 overflow-hidden border border-gray-300">
         <div ref={pdfRef} className="scale-75 origin-top">
           {/* ================= PAGE 1 ================= */}
-          <section className="pdf-page">
+          <section className="pdf-page" data-no-split="true">
             
             
             <div className="page-content">
@@ -1536,7 +1628,8 @@ With reference to your enquiry, regarding the supply of Water Purification Syste
               </>
               )}
 
-              <div className="notes">
+             {form.products?.length <4 && (
+               <div className="notes">
                 <div className="font-bold mb-2">Note:</div>
                 <ol className="list-decimal pl-5 space-y-1">
                   {form.notes.map((note, index) => (
@@ -1544,6 +1637,7 @@ With reference to your enquiry, regarding the supply of Water Purification Syste
                   ))}
                 </ol>
               </div>
+             )}
             </div>
 
            
