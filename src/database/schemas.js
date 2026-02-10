@@ -186,7 +186,7 @@ export const productSchema = {
 
 export const quotationSchema = {
   title: 'Quotation Schema',
-  version: 4,
+  version: 7,
   primaryKey: 'id',
   type: 'object',
   properties: {
@@ -219,6 +219,24 @@ export const quotationSchema = {
     },
     purchasePurpose: {
       type: 'string'
+    },
+    quotationType: {
+      type: 'string'
+    },
+    rentalAmount: {
+      type: 'number'
+    },
+    rentalMonthly: {
+      type: 'number'
+    },
+    rentalMonthsQty: {
+      type: 'number'
+    },
+    serviceAmount: {
+      type: 'number'
+    },
+    salesAmount: {
+      type: 'number'
     },
     quotationAmount: {
       type: 'number',
@@ -274,7 +292,15 @@ export const quotationSchema = {
           total: { type: 'number' },
           installationCharge: { type: 'number' },
           monthlyRent: { type: 'number' },
+          monthlyDiscount: { type: 'number' },
           monthsQty: { type: 'number' },
+          salesUnitAmount: { type: 'number' },
+          salesDiscount: { type: 'number' },
+          rentToOwnUpfrontUnit: { type: 'number' },
+          rentToOwnUpfrontDiscount: { type: 'number' },
+          rentToOwnMonthlyUnit: { type: 'number' },
+          rentToOwnMonthlyDiscount: { type: 'number' },
+          rentToOwnMonthsQty: { type: 'number' },
           productDetails: {
             type: 'object',
             additionalProperties: true
@@ -346,6 +372,6 @@ export const quotationSchema = {
       type: 'object'
     }
   },
-  required: ['id', 'clientName', 'productId', 'createdAt', 'status', 'quotationRefNo', 'countryCode', '_deleted', '_rev', '_meta', '_attachments'],
-  indexes: ['status', 'createdAt', 'clientName', 'quotationRefNo', 'countryCode']
+  required: ['id', 'clientName', 'productId', 'createdAt', 'status', 'quotationRefNo', 'countryCode', 'quotationType', '_deleted', '_rev', '_meta', '_attachments'],
+  indexes: ['status', 'createdAt', 'clientName', 'quotationRefNo', 'countryCode', 'quotationType']
 };

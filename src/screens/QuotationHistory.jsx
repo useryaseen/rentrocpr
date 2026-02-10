@@ -73,6 +73,7 @@ export default function QuotationHistory() {
       companyName: data.clientName || row.clientName || "",
       companyAddress: data.clientCity || "",
       countryCode: data.countryCode || row.countryCode || "",
+      quotationType: data.quotationType || "Rental Quotation",
       attentionTo: data.clientAttendant || data.clientName || "",
       subject: "",
       intro: "",

@@ -748,6 +748,12 @@ const QuotationPdf = () => {
     clientCity: "",
     clientAttendant: "",
     subject: "Water Purification Systems - Monthly Rental Plan - 400 GPD",
+    quotationType: "Rental Quotation",
+    rentalAmount: 0,
+    rentalMonthly: 0,
+    rentalMonthsQty: 0,
+    serviceAmount: 0,
+    salesAmount: 0,
     
     // Delivery & Installation
     products: [
@@ -849,6 +855,20 @@ const QuotationPdf = () => {
             : prev.maintenanceService,
           otherTerms: parsed.otherTerms?.length ? parsed.otherTerms : prev.otherTerms,
           warrantyParts: parsed.warrantyParts?.length ? parsed.warrantyParts : prev.warrantyParts,
+          quotationType:
+            parsed.quotationType ||
+            (Array.isArray(parsed.quotationTypes) && parsed.quotationTypes[0]) ||
+            prev.quotationType,
+          rentalAmount:
+            parsed.rentalAmount !== undefined ? parsed.rentalAmount : prev.rentalAmount,
+          rentalMonthly:
+            parsed.rentalMonthly !== undefined ? parsed.rentalMonthly : prev.rentalMonthly,
+          rentalMonthsQty:
+            parsed.rentalMonthsQty !== undefined ? parsed.rentalMonthsQty : prev.rentalMonthsQty,
+          serviceAmount:
+            parsed.serviceAmount !== undefined ? parsed.serviceAmount : prev.serviceAmount,
+          salesAmount:
+            parsed.salesAmount !== undefined ? parsed.salesAmount : prev.salesAmount,
           attentionTo:
             parsed.attentionTo ||
             parsed.clientAttendant ||
@@ -868,6 +888,40 @@ const QuotationPdf = () => {
   const updateField = (key, value) => {
     setForm((prev) => ({ ...prev, [key]: value }));
   };
+
+  const rentalAmountValue = Number(form.rentalAmount || 0);
+  const rentalMonthlyValue = Number(form.rentalMonthly || 0);
+  const rentalMonthsQtyValue = Number(form.rentalMonthsQty || 0);
+  const rentalTotalValue = rentalAmountValue + rentalMonthlyValue * rentalMonthsQtyValue;
+  const serviceAmountValue = Number(form.serviceAmount || 0);
+  const salesAmountValue = Number(form.salesAmount || 0);
+  const toNumber = (value) => {
+    const n = Number(value);
+    return Number.isFinite(n) ? n : 0;
+  };
+
+  const allProducts = form.products || [];
+  const quotationType = form.quotationType || "Rental Quotation";
+  const hasAnyProducts = allProducts.length > 0;
+  const showRental = quotationType === "Rental Quotation";
+  const showSales = ["Sales Quotation", "Service Quotation", "AMC Quotation"].includes(
+    quotationType
+  );
+  const showRent2Own = quotationType === "RENT 2 OWN Quotation";
+  const hasRentalData = showRental && allProducts.length > 0;
+  const hasSalesData = showSales && allProducts.length > 0;
+  const hasRent2OwnData = showRent2Own && allProducts.length > 0;
+  const hasServiceData = quotationType === "Service Quotation";
+  const rentalRows = allProducts;
+  const salesRows = allProducts;
+  const rent2OwnRows = allProducts;
+  const hasMonthlyRentProducts = showRental && allProducts.length > 0;
+  const deliveryTotalValue = allProducts.reduce((sum, p) => {
+    const qty = toNumber(p.qty || 0);
+    const unit = toNumber(p.installationCharge || 0);
+    const discount = toNumber(p.discount || 0);
+    return sum + qty * Math.max(0, unit - discount);
+  }, 0);
 
   const generatePdf = () => {
     const element = pdfRef.current;
@@ -896,7 +950,7 @@ const QuotationPdf = () => {
             body { 
               margin: 0; 
               font-family: Arial, sans-serif;
-              font-size: 12px;
+              font-size: 10px;
               line-height: 1.4;
               -webkit-print-color-adjust: exact !important;
               print-color-adjust: exact !important;
@@ -1021,7 +1075,7 @@ const QuotationPdf = () => {
             }
             .notes {
               margin: 15px 0;
-              padding: 12px;
+              padding: 4px;
               background: rgba(254, 252, 232, 0.9);
               border-left: 4px solid #eab308;
               font-size: 11px;
@@ -1189,13 +1243,133 @@ const QuotationPdf = () => {
 
               <p className="mb-1 text-sm">
                 Dear Sir/Madam,<br />
-With reference to your enquiry, regarding the supply of Water Purification Systems on Rental
+With reference to your enquiry, regarding the supply of Water Purification Systems on {form?.quotationType || "Rental "}, we are pleased to submit our most competitive quotation for your kind consideration.
               </p>
               <p className="mb-6 text-lg">Plan for your well-known organization. We hereby submitting our quote for {form?.purchasePurpose}  at 
 <span class="text-red-500 subject">{" "+form?.clientCity}</span> as follows:
 </p>
 
-              <div className="section-title">DELIVERY & INSTALLATION</div>
+
+
+              {hasAnyProducts && (
+                <>
+                  <div className="section-title">Delivery & Installation</div>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Product</th>
+                        <th>Capacity</th>
+                        <th>Qty</th>
+                        <th>Delivery Installation/Unit</th>
+                        <th>Discount/Unit</th>
+                        <th>Total Amount</th>
+                      
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {allProducts.map((product, index) => {
+                        const qty = toNumber(product.qty || 0);
+                        const unit = toNumber(product.installationCharge || 0);
+                        const discount = toNumber(product.discount || 0);
+                        const total = qty * Math.max(0, unit - discount);
+                        const imageUrl =
+                          product.productDetails?.images?.[0]?.imageUrl ||
+                          product.images?.[0]?.imageUrl ||
+                          "";
+                        return (
+                          <tr key={`${product.name}-${index}`}>
+                            <td>{index + 1}</td>
+                            <td>{product.name}</td>
+                            <td>{product.capacity}</td>
+                            <td>{product.qty}</td>
+                            <td>SAR: {unit.toFixed(2)}</td>
+                            <td>SAR: {discount.toFixed(2)}</td>
+                            <td>SAR: {total.toFixed(2)}</td>
+                           
+                          </tr>
+                        );
+                      })}
+                      <tr>
+                        <td colSpan="6" className="text-right font-bold">Total</td>
+                        <td className="font-bold">
+                          {deliveryTotalValue.toFixed(2)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <div className="mt-2 text-right text-sm font-semibold text-gray-700">
+                    Delivery & Installation Total: SAR {deliveryTotalValue.toFixed(2)}
+                  </div>
+                </>
+              )}
+
+              {hasMonthlyRentProducts && (
+                <>
+                  <div className="section-title">RENTAL - Monthly Rental</div>
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>#</th>
+                        <th>Product</th>
+                        <th>Capacity</th>
+                        <th>Qty</th>
+                        <th>Monthly-Rent/Unit</th>
+                        <th>Discount/Unit</th>
+                        <th>Months Qty</th>
+                        <th>Total Amount</th>
+                      
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {rentalRows.map((product, index) => {
+                        const qty = Number(product.qty || 0);
+                        const unit = Number(product.monthlyRent || 0);
+                        const discount = Number(product.monthlyDiscount || 0);
+                        const months = Number(product.monthsQty || 0);
+                        const total = qty * Math.max(0, unit - discount) * Math.max(1, months);
+                        const imageUrl =
+                          product.productDetails?.images?.[0]?.imageUrl ||
+                          product.images?.[0]?.imageUrl ||
+                          "";
+                        return (
+                          <tr key={`${product.name}-${index}`}>
+                            <td>{index + 1}</td>
+                            <td>{product.name}</td>
+                            <td>{product.capacity}</td>
+                            <td>{product.qty}</td>
+                            <td>SAR: {unit.toFixed(2)}</td>
+                            <td>SAR: {discount.toFixed(2)}</td>
+                            <td>{months}</td>
+                            <td>SAR: {total.toFixed(2)}</td>
+                           
+                          </tr>
+                        );
+                      })}
+                      <tr>
+                        <td colSpan="7" className="text-right font-bold">Total</td>
+                        <td className="font-bold">
+                          {rentalRows
+                            .reduce((sum, p) => {
+                              const qty = Number(p.qty || 0);
+                              const unit = Number(p.monthlyRent || 0);
+                              const discount = Number(p.monthlyDiscount || 0);
+                              const months = Number(p.monthsQty || 0);
+                              return (
+                                sum + qty * Math.max(0, unit - discount) * Math.max(1, months)
+                              );
+                            }, 0)
+                            .toFixed(2)}
+                        </td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </>
+              )}
+
+              {hasSalesData && (
+              <>
+              <div className="section-title">Sales / Service / AMC</div>
               <table>
                 <thead>
                   <tr>
@@ -1203,61 +1377,164 @@ With reference to your enquiry, regarding the supply of Water Purification Syste
                     <th>Product</th>
                     <th>Capacity</th>
                     <th>Qty</th>
-                    <th>Installation/Unit</th>
+                    <th>Price/Unit</th>
+                    <th>Discount/Unit</th>
                     <th>Total Amount</th>
+                  
                   </tr>
                 </thead>
                 <tbody>
-                  {form.products.map((product, index) => (
-                    <tr key={index}>
-                      <td>{index + 1}</td>
-                      <td>{product.name}</td>
-                      <td>{product.capacity}</td>
-                      <td>{product.qty}</td>
-                      <td>SAR: {product.installationCharge ?? form.installationUnit}</td>
-                      <td>SAR: {product.total}</td>
-                    </tr>
-                  ))}
+                  {salesRows.map((product, index) => {
+                    const qty = Number(product.qty || 0);
+                    const unit = Number(product.salesUnitAmount || 0);
+                    const discount = Number(product.salesDiscount || 0);
+                    const total = qty * Math.max(0, unit - discount);
+                    const imageUrl =
+                      product.productDetails?.images?.[0]?.imageUrl ||
+                      product.images?.[0]?.imageUrl ||
+                      "";
+                    return (
+                      <tr key={index}>
+                        <td>{index + 1}</td>
+                        <td>{product.name}</td>
+                        <td>{product.capacity}</td>
+                        <td>{product.qty}</td>
+                        <td>SAR: {unit.toFixed(2)}</td>
+                        <td>SAR: {discount.toFixed(2)}</td>
+                        <td>SAR: {total.toFixed(2)}</td>
+                        
+                      </tr>
+                    );
+                  })}
                   <tr>
-                    <td colSpan="5" className="text-right font-bold">Total</td>
+                    <td colSpan="6" className="text-right font-bold">Total</td>
                     <td className="font-bold">
-                      {form.products.reduce((sum, p) => sum + Number(p.total || 0), 0).toFixed(2)}
-                    </td>
-                  </tr>
-                </tbody>
-              </table>
-
-              <div className="section-title">Monthly Rent</div>
-              <table>
-                <thead>
-                  <tr>
-                    <th>#</th>
-                    <th>Product</th>
-                    <th>Monthly Rent</th>
-                    <th>Qty/Months</th>
-                    <th>Total Amount</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {form.monthlyRentProducts.map((product, index) => (
-                    <tr key={index}>
-                      <td>{index + 1}</td>
-                      <td>{product.product}</td>
-                      <td>SAR: {product.monthlyRent || form.monthlyRent}</td>
-                      <td>{product.qtyMonths}</td>
-                      <td> SAR {product.totalAmount}</td>
-                    </tr>
-                  ))}
-                  <tr>
-                    <td colSpan="4" className="text-right font-bold">Total</td>
-                    <td className="font-bold">
-                      {form.monthlyRentProducts
-                        .reduce((sum, p) => sum + Number(p.totalAmount || 0), 0)
+                      {salesRows
+                        .reduce((sum, p) => {
+                          const qty = Number(p.qty || 0);
+                          const unit = Number(p.salesUnitAmount || 0);
+                          const discount = Number(p.salesDiscount || 0);
+                          return sum + qty * Math.max(0, unit - discount);
+                        }, 0)
                         .toFixed(2)}
                     </td>
                   </tr>
                 </tbody>
               </table>
+              </>
+              )}
+
+              {hasRent2OwnData && (
+              <>
+              <div className="section-title">RENT 2 OWN</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Product</th>
+                    <th>Capacity</th>
+                    <th>Qty</th>
+                    <th>Upfront/Unit</th>
+                    <th>Discount/Unit</th>
+                    <th>Total Amount</th>
+                   
+                  </tr>
+                </thead>
+                <tbody>
+                  {rent2OwnRows.map((product, index) => {
+                    const qty = Number(product.qty || 0);
+                    const unit = Number(product.rentToOwnUpfrontUnit || 0);
+                    const discount = Number(product.rentToOwnUpfrontDiscount || 0);
+                    const total = qty * Math.max(0, unit - discount);
+                    const imageUrl =
+                      product.productDetails?.images?.[0]?.imageUrl ||
+                      product.images?.[0]?.imageUrl ||
+                      "";
+                    return (
+                      <tr key={index}>
+                        <td>{index + 1}</td>
+                        <td>{product.name}</td>
+                        <td>{product.capacity}</td>
+                        <td>{product.qty}</td>
+                        <td>SAR: {unit.toFixed(2)}</td>
+                        <td>SAR: {discount.toFixed(2)}</td>
+                        <td>SAR: {total.toFixed(2)}</td>
+                        
+                      </tr>
+                    );
+                  })}
+                  <tr>
+                    <td colSpan="6" className="text-right font-bold">Total</td>
+                    <td className="font-bold">
+                      {rent2OwnRows
+                        .reduce((sum, p) => {
+                          const qty = Number(p.qty || 0);
+                          const unit = Number(p.rentToOwnUpfrontUnit || 0);
+                          const discount = Number(p.rentToOwnUpfrontDiscount || 0);
+                          return sum + qty * Math.max(0, unit - discount);
+                        }, 0)
+                        .toFixed(2)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              </>
+              )}
+
+              {hasRent2OwnData && (
+              <>
+              <div className="section-title">Monthly Payment</div>
+              <table>
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th>Product</th>
+                    <th>Capacity</th>
+                    <th>Qty</th>
+                    <th>Monthly/Unit</th>
+                    <th>Discount/Unit</th>
+                    <th>No of Months</th>
+                    <th>Total Amount</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rent2OwnRows.map((product, index) => {
+                    const qty = Number(product.qty || 0);
+                    const unit = Number(product.rentToOwnMonthlyUnit || 0);
+                    const discount = Number(product.rentToOwnMonthlyDiscount || 0);
+                    const months = Number(product.rentToOwnMonthsQty || 0);
+                    const total = qty * Math.max(0, unit - discount) * Math.max(1, months);
+                    return (
+                      <tr key={index}>
+                        <td>{index + 1}</td>
+                        <td>{product.name}</td>
+                        <td>{product.capacity}</td>
+                        <td>{product.qty}</td>
+                        <td>SAR: {unit.toFixed(2)}</td>
+                        <td>SAR: {discount.toFixed(2)}</td>
+                        <td>{months}</td>
+                        <td>SAR: {total.toFixed(2)}</td>
+                      </tr>
+                    );
+                  })}
+                  <tr>
+                    <td colSpan="6" className="text-right font-bold">Total</td>
+                    <td className="font-bold">
+                      {rent2OwnRows
+                        .reduce((sum, p) => {
+                          const qty = Number(p.qty || 0);
+                          const unit = Number(p.rentToOwnMonthlyUnit || 0);
+                          const discount = Number(p.rentToOwnMonthlyDiscount || 0);
+                          const months = Number(p.rentToOwnMonthsQty || 0);
+                          return sum + qty * Math.max(0, unit - discount) * Math.max(1, months);
+                        }, 0)
+                        .toFixed(2)}
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              </>
+              )}
 
               <div className="notes">
                 <div className="font-bold mb-2">Note:</div>

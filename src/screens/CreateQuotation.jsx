@@ -672,6 +672,14 @@ const purchasePurposes = [
   { label: "Other", value: "other" },
 ];
 
+const quotationTypeOptions = [
+  { label: "Rental Quotation", value: "Rental Quotation" },
+  { label: "Sales Quotation", value: "Sales Quotation" },
+  { label: "Service Quotation", value: "Service Quotation" },
+  { label: "AMC Quotation", value: "AMC Quotation" },
+  { label: "RENT 2 OWN Quotation", value: "RENT 2 OWN Quotation" },
+];
+
 const countryOptions = [
   { label: "United Arab Emirates", value: "AE" },
   { label: "Saudi Arabia", value: "SA" },
@@ -715,6 +723,7 @@ export default function CreateQuotation() {
   const [serviceDays, setServiceDays] = useState("3");
   const [installationPeriod, setInstallationPeriod] = useState("immediate");
   const [purchasePurpose, setPurchasePurpose] = useState("store");
+  const [quotationType, setQuotationType] = useState("Rental Quotation");
     const [countryCode, setCountryCode] = useState("AE");
   const [quotationRefNo, setQuotationRefNo] = useState("");
   const [isLoadingQuotation, setIsLoadingQuotation] = useState(false);
@@ -777,19 +786,50 @@ export default function CreateQuotation() {
   const productTotals = useMemo(() => {
     return products.map((item) => {
       const qty = Number(item.qty || 0);
-      const unit = Number(item.unitAmount || 0);
-      const discount = Number(item.discount || 0);
-      const installationCharge = Number(item.installationCharge || 0);
+      const deliveryInstall = Number(item.installationCharge || 0);
+      const deliveryDiscount = Number(item.discount || 0);
       const monthlyRent = Number(item.monthlyRent || 0);
+      const monthlyDiscount = Number(item.monthlyDiscount || 0);
       const monthsQty = Number(item.monthsQty || 0);
+      const salesUnit = Number(item.salesUnitAmount || item.salesAmount || 0);
+      const salesDiscount = Number(item.salesDiscount || 0);
+      const rentToOwnUpfrontUnit = Number(item.rentToOwnUpfrontUnit || 0);
+      const rentToOwnUpfrontDiscount = Number(item.rentToOwnUpfrontDiscount || 0);
+      const rentToOwnMonthlyUnit = Number(item.rentToOwnMonthlyUnit || 0);
+      const rentToOwnMonthlyDiscount = Number(item.rentToOwnMonthlyDiscount || 0);
+      const rentToOwnMonthsQty = Number(item.rentToOwnMonthsQty || 0);
+      const rentalSelected = quotationType === "Rental Quotation";
+      const salesSelected = quotationType === "Sales Quotation";
+      const serviceSelected = quotationType === "Service Quotation";
+      const amcSelected = quotationType === "AMC Quotation";
+      const rentToOwnSelected = quotationType === "RENT 2 OWN Quotation";
+
+      const deliveryTotal = qty * Math.max(0, deliveryInstall - deliveryDiscount);
+      const rentalTotal = rentalSelected
+        ? qty * Math.max(0, monthlyRent - monthlyDiscount) * Math.max(1, monthsQty)
+        : 0;
+      const salesTotal =
+        salesSelected || serviceSelected || amcSelected
+          ? qty * Math.max(0, salesUnit - salesDiscount)
+          : 0;
+      const rentToOwnUpfrontTotal = rentToOwnSelected
+        ? qty * Math.max(0, rentToOwnUpfrontUnit - rentToOwnUpfrontDiscount)
+        : 0;
+      const rentToOwnMonthlyTotal = rentToOwnSelected
+        ? qty *
+          Math.max(0, rentToOwnMonthlyUnit - rentToOwnMonthlyDiscount) *
+          Math.max(1, rentToOwnMonthsQty)
+        : 0;
+
       const total =
-        qty * unit -
-        discount +
-        installationCharge * qty +
-        monthlyRent * monthsQty;
+        deliveryTotal +
+        rentalTotal +
+        salesTotal +
+        rentToOwnUpfrontTotal +
+        rentToOwnMonthlyTotal;
       return Math.max(0, total);
     });
-  }, [products]);
+  }, [products, quotationType]);
 
   const grandTotal = useMemo(() => {
     return productTotals.reduce((sum, value) => sum + value, 0);
@@ -832,12 +872,19 @@ export default function CreateQuotation() {
             const productWithDefaults = {
               ...p,
               qty: p.qty ?? 1,
-              unitAmount: p.unitAmount ?? 0,
               discount: p.discount ?? 0,
               capacity: p.capacity || extractCapacity(p.name),
               installationCharge: p.installationCharge ?? 0,
               monthlyRent: p.monthlyRent ?? 0,
-              monthsQty: p.monthsQty ?? 0
+              monthsQty: p.monthsQty ?? 0,
+              monthlyDiscount: p.monthlyDiscount ?? 0,
+              salesUnitAmount: p.salesUnitAmount ?? 0,
+              salesDiscount: p.salesDiscount ?? 0,
+              rentToOwnUpfrontUnit: p.rentToOwnUpfrontUnit ?? 0,
+              rentToOwnUpfrontDiscount: p.rentToOwnUpfrontDiscount ?? 0,
+              rentToOwnMonthlyUnit: p.rentToOwnMonthlyUnit ?? 0,
+              rentToOwnMonthlyDiscount: p.rentToOwnMonthlyDiscount ?? 0,
+              rentToOwnMonthsQty: p.rentToOwnMonthsQty ?? 0
             };
             newProductList.push(productWithDefaults);
           }
@@ -879,6 +926,7 @@ export default function CreateQuotation() {
       setServiceDays(cached.serviceDays || "3");
       setInstallationPeriod(cached.installationPeriod || "immediate");
       setPurchasePurpose(cached.purchasePurpose || "store");
+      setQuotationType(cached.quotationType || "Rental Quotation");
       setCustomInstallationDate(cached.customInstallationDate || "");
       setCustomDays(cached.customDays || "");
       setCustomPurpose(cached.customPurpose || "");
@@ -907,6 +955,7 @@ export default function CreateQuotation() {
       serviceDays,
       installationPeriod,
       purchasePurpose,
+      quotationType,
       customInstallationDate,
       customDays,
       customPurpose,
@@ -933,6 +982,7 @@ export default function CreateQuotation() {
     serviceDays,
     installationPeriod,
     purchasePurpose,
+    quotationType,
     customInstallationDate,
     customDays,
     customPurpose,
@@ -973,6 +1023,7 @@ export default function CreateQuotation() {
         );
         setCountryCode(data.countryCode || "AE");
         setQuotationRefNo(data.quotationRefNo || "");
+        setQuotationType(data.quotationType || "Rental Quotation");
         setProductId(data.productId ? String(data.productId) : "");
         setSelectedProduct(data.productDetails || null);
         setProducts(data.products?.length ? data.products : []);
@@ -1093,17 +1144,25 @@ export default function CreateQuotation() {
           intro: "",
           installationUnit: "",
           monthlyRent: "",
-          products: products.map((item, index) => ({
-            name: item.name || "",
-            capacity: item.capacity || "",
-            qty: Number(item.qty || 0),
-            unitAmount: Number(item.unitAmount || 0),
-            discount: Number(item.discount || 0),
-            installationCharge: Number(item.installationCharge || 0),
-            monthlyRent: Number(item.monthlyRent || 0),
-            monthsQty: Number(item.monthsQty || 0),
-            total: productTotals[index] || 0,
-          })),
+          quotationType,
+        products: products.map((item, index) => ({
+          name: item.name || "",
+          capacity: item.capacity || "",
+          qty: Number(item.qty || 0),
+          discount: Number(item.discount || 0),
+          installationCharge: Number(item.installationCharge || 0),
+          monthlyRent: Number(item.monthlyRent || 0),
+          monthlyDiscount: Number(item.monthlyDiscount || 0),
+          monthsQty: Number(item.monthsQty || 0),
+          salesUnitAmount: Number(item.salesUnitAmount || 0),
+          salesDiscount: Number(item.salesDiscount || 0),
+          rentToOwnUpfrontUnit: Number(item.rentToOwnUpfrontUnit || 0),
+          rentToOwnUpfrontDiscount: Number(item.rentToOwnUpfrontDiscount || 0),
+          rentToOwnMonthlyUnit: Number(item.rentToOwnMonthlyUnit || 0),
+          rentToOwnMonthlyDiscount: Number(item.rentToOwnMonthlyDiscount || 0),
+          rentToOwnMonthsQty: Number(item.rentToOwnMonthsQty || 0),
+          total: productTotals[index] || 0,
+        })),
           monthlyRentProducts: products.map((item, index) => ({
             product: item.name || "",
             monthlyRent: Number(item.monthlyRent || 0),
@@ -1171,33 +1230,41 @@ export default function CreateQuotation() {
           }
         : undefined;
       
-        const quotationData = {
-          id: quotationId,
-          clientName,
-          clientAttendant: clientAttendant.trim() || clientName.trim(),
-          clientCity: clientCity.trim(),
-          quantity: products.reduce((sum, item) => sum + Number(item.qty || 0), 0),
-          serviceDays: serviceDays === "custom" ? customDays : serviceDays,
-          installationPeriod: installationPeriod === "custom_date" 
-            ? customInstallationDate 
-            : installationPeriod,
-          purchasePurpose: purchasePurpose === "other" ? customPurpose : purchasePurpose,
-          quotationAmount: Number(grandTotal || 0),
-          totalAmount: Number(grandTotal || 0),
-          productId: String(primaryId ?? ""),
-          quotationRefNo: refNoToUse,
-          countryCode,
+      const quotationData = {
+        id: quotationId,
+        clientName,
+        clientAttendant: clientAttendant.trim() || clientName.trim(),
+        clientCity: clientCity.trim(),
+        quantity: products.reduce((sum, item) => sum + Number(item.qty || 0), 0),
+        serviceDays: serviceDays === "custom" ? customDays : serviceDays,
+        installationPeriod: installationPeriod === "custom_date" 
+          ? customInstallationDate 
+          : installationPeriod,
+        purchasePurpose: purchasePurpose === "other" ? customPurpose : purchasePurpose,
+        quotationType,
+        quotationAmount: Number(grandTotal || 0),
+        totalAmount: Number(grandTotal || 0),
+        productId: String(primaryId ?? ""),
+        quotationRefNo: refNoToUse,
+        countryCode,
           productDetails,
-          products: products.map((item, index) => ({
-            id: String(item.productId ?? item.id ?? ""),
-            name: item.name || "",
-            capacity: item.capacity || "",
-            qty: Number(item.qty || 0),
-            unitAmount: Number(item.unitAmount || 0),
-            discount: Number(item.discount || 0),
-            installationCharge: Number(item.installationCharge || 0),
-            monthlyRent: Number(item.monthlyRent || 0),
-            monthsQty: Number(item.monthsQty || 0),
+        products: products.map((item, index) => ({
+          id: String(item.productId ?? item.id ?? ""),
+          name: item.name || "",
+          capacity: item.capacity || "",
+          qty: Number(item.qty || 0),
+          discount: Number(item.discount || 0),
+          installationCharge: Number(item.installationCharge || 0),
+          monthlyRent: Number(item.monthlyRent || 0),
+          monthlyDiscount: Number(item.monthlyDiscount || 0),
+          monthsQty: Number(item.monthsQty || 0),
+          salesUnitAmount: Number(item.salesUnitAmount || 0),
+          salesDiscount: Number(item.salesDiscount || 0),
+          rentToOwnUpfrontUnit: Number(item.rentToOwnUpfrontUnit || 0),
+          rentToOwnUpfrontDiscount: Number(item.rentToOwnUpfrontDiscount || 0),
+          rentToOwnMonthlyUnit: Number(item.rentToOwnMonthlyUnit || 0),
+            rentToOwnMonthlyDiscount: Number(item.rentToOwnMonthlyDiscount || 0),
+            rentToOwnMonthsQty: Number(item.rentToOwnMonthsQty || 0),
             total: productTotals[index] || 0,
             productDetails: item.productDetails || {}
           })),
@@ -1247,6 +1314,7 @@ export default function CreateQuotation() {
           setServiceDays("3");
           setInstallationPeriod("immediate");
           setPurchasePurpose("store");
+          setQuotationType("Rental Quotation");
           setCustomInstallationDate("");
           setCustomDays("");
           setCustomPurpose("");
@@ -1448,6 +1516,35 @@ export default function CreateQuotation() {
 
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-900 mb-2">
+                  Quotation Type <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {quotationTypeOptions.map((option) => (
+                    <label
+                      key={option.value}
+                      className={`inline-flex items-center gap-2 rounded border px-3 py-2 text-sm ${
+                        quotationType === option.value
+                          ? "border-blue-500 bg-blue-50 text-blue-700"
+                          : "border-gray-300 bg-white text-gray-700"
+                      } ${isSubmitting ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                    >
+                      <input
+                        type="radio"
+                        name="quotation-type"
+                        value={option.value}
+                        checked={quotationType === option.value}
+                        onChange={(event) => setQuotationType(event.target.value)}
+                        className="h-4 w-4 text-blue-600"
+                        disabled={isSubmitting}
+                      />
+                      <span>{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mb-6">
+                <label className="block text-sm font-medium text-gray-900 mb-2">
                   Selected Products
                 </label>
                 {products.length === 0 ? (
@@ -1491,18 +1588,6 @@ export default function CreateQuotation() {
                           />
                         </label>
                         <label className="text-xs text-gray-500">
-                          Unit Amount
-                          <input
-                            className="mt-1 w-full rounded border px-2 py-1 text-sm"
-                            type="number"
-                            min="0"
-                            value={item.unitAmount}
-                            onChange={(event) =>
-                              updateProductField(index, "unitAmount", event.target.value)
-                            }
-                          />
-                        </label>
-                        <label className="text-xs text-gray-500">
                           Installation Charge (per unit)
                           <input
                             className="mt-1 w-full rounded border px-2 py-1 text-sm"
@@ -1515,7 +1600,7 @@ export default function CreateQuotation() {
                           />
                         </label>
                         <label className="text-xs text-gray-500">
-                          Discount
+                          Discount/Installation
                           <input
                             className="mt-1 w-full rounded border px-2 py-1 text-sm"
                             type="number"
@@ -1526,30 +1611,194 @@ export default function CreateQuotation() {
                             }
                           />
                         </label>
-                        <label className="text-xs text-gray-500">
-                          Monthly Rent
-                          <input
-                            className="mt-1 w-full rounded border px-2 py-1 text-sm"
-                            type="number"
-                            min="0"
-                            value={item.monthlyRent}
-                            onChange={(event) =>
-                              updateProductField(index, "monthlyRent", event.target.value)
-                            }
-                          />
-                        </label>
-                        <label className="text-xs text-gray-500">
-                          Months Qty
-                          <input
-                            className="mt-1 w-full rounded border px-2 py-1 text-sm"
-                            type="number"
-                            min="0"
-                            value={item.monthsQty}
-                            onChange={(event) =>
-                              updateProductField(index, "monthsQty", event.target.value)
-                            }
-                          />
-                        </label>
+                        {quotationType === "Rental Quotation" && (
+                            <>
+                              <label className="text-xs text-gray-500">
+                                Monthly Rent/Unit
+                                <input
+                                  className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                                  type="number"
+                                  min="0"
+                                  value={item.monthlyRent}
+                                  onChange={(event) =>
+                                    updateProductField(index, "monthlyRent", event.target.value)
+                                  }
+                                />
+                              </label>
+                              <label className="text-xs text-gray-500">
+                                Discount/Unit
+                                <input
+                                  className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                                  type="number"
+                                  min="0"
+                                  value={item.monthlyDiscount}
+                                  onChange={(event) =>
+                                    updateProductField(index, "monthlyDiscount", event.target.value)
+                                  }
+                                />
+                              </label>
+                              <label className="text-xs text-gray-500">
+                                Months Qty
+                                <input
+                                  className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                                  type="number"
+                                  min="0"
+                                  value={item.monthsQty}
+                                  onChange={(event) =>
+                                    updateProductField(index, "monthsQty", event.target.value)
+                                  }
+                                />
+                              </label>
+                            </>
+                          )}
+                        {quotationType === "Service Quotation" && (
+                            <>
+                              <label className="text-xs text-gray-500">
+                                Price/Unit
+                                <input
+                                  className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                                  type="number"
+                                  min="0"
+                                  value={item.salesUnitAmount}
+                                  onChange={(event) =>
+                                    updateProductField(index, "salesUnitAmount", event.target.value)
+                                  }
+                                />
+                              </label>
+                              <label className="text-xs text-gray-500">
+                                Discount/Unit
+                                <input
+                                  className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                                  type="number"
+                                  min="0"
+                                  value={item.salesDiscount}
+                                  onChange={(event) =>
+                                    updateProductField(index, "salesDiscount", event.target.value)
+                                  }
+                                />
+                              </label>
+                            </>
+                          )}
+                        {quotationType === "Sales Quotation" && (
+                            <>
+                              <label className="text-xs text-gray-500">
+                                Price/Unit
+                                <input
+                                  className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                                  type="number"
+                                  min="0"
+                                  value={item.salesUnitAmount}
+                                  onChange={(event) =>
+                                    updateProductField(index, "salesUnitAmount", event.target.value)
+                                  }
+                                />
+                              </label>
+                              <label className="text-xs text-gray-500">
+                                Discount/Unit
+                                <input
+                                  className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                                  type="number"
+                                  min="0"
+                                  value={item.salesDiscount}
+                                  onChange={(event) =>
+                                    updateProductField(index, "salesDiscount", event.target.value)
+                                  }
+                                />
+                              </label>
+                            </>
+                          )}
+                        {quotationType === "AMC Quotation" && (
+                            <>
+                              <label className="text-xs text-gray-500">
+                                Price/Unit
+                                <input
+                                  className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                                  type="number"
+                                  min="0"
+                                  value={item.salesUnitAmount}
+                                  onChange={(event) =>
+                                    updateProductField(index, "salesUnitAmount", event.target.value)
+                                  }
+                                />
+                              </label>
+                              <label className="text-xs text-gray-500">
+                                Discount/Unit
+                                <input
+                                  className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                                  type="number"
+                                  min="0"
+                                  value={item.salesDiscount}
+                                  onChange={(event) =>
+                                    updateProductField(index, "salesDiscount", event.target.value)
+                                  }
+                                />
+                              </label>
+                            </>
+                          )}
+                        {quotationType === "RENT 2 OWN Quotation" && (
+                            <>
+                              <label className="text-xs text-gray-500">
+                                Upfront/Unit
+                                <input
+                                  className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                                  type="number"
+                                  min="0"
+                                  value={item.rentToOwnUpfrontUnit}
+                                  onChange={(event) =>
+                                    updateProductField(index, "rentToOwnUpfrontUnit", event.target.value)
+                                  }
+                                />
+                              </label>
+                              <label className="text-xs text-gray-500">
+                                Discount/Unit
+                                <input
+                                  className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                                  type="number"
+                                  min="0"
+                                  value={item.rentToOwnUpfrontDiscount}
+                                  onChange={(event) =>
+                                    updateProductField(index, "rentToOwnUpfrontDiscount", event.target.value)
+                                  }
+                                />
+                              </label>
+                              <label className="text-xs text-gray-500">
+                                Monthly/Unit
+                                <input
+                                  className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                                  type="number"
+                                  min="0"
+                                  value={item.rentToOwnMonthlyUnit}
+                                  onChange={(event) =>
+                                    updateProductField(index, "rentToOwnMonthlyUnit", event.target.value)
+                                  }
+                                />
+                              </label>
+                              <label className="text-xs text-gray-500">
+                                Discount/Unit
+                                <input
+                                  className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                                  type="number"
+                                  min="0"
+                                  value={item.rentToOwnMonthlyDiscount}
+                                  onChange={(event) =>
+                                    updateProductField(index, "rentToOwnMonthlyDiscount", event.target.value)
+                                  }
+                                />
+                              </label>
+                              <label className="text-xs text-gray-500">
+                                No. of Months
+                                <input
+                                  className="mt-1 w-full rounded border px-2 py-1 text-sm"
+                                  type="number"
+                                  min="0"
+                                  value={item.rentToOwnMonthsQty}
+                                  onChange={(event) =>
+                                    updateProductField(index, "rentToOwnMonthsQty", event.target.value)
+                                  }
+                                />
+                              </label>
+                            </>
+                          )}
                         
                       </div>
                     ))}
@@ -1566,8 +1815,10 @@ export default function CreateQuotation() {
                               .reduce(
                                 (sum, item) =>
                                   sum +
-                                  Number(item.monthlyRent || 0) *
-                                    Number(item.monthsQty || 0),
+                                  (quotationType === "Rental Quotation"
+                                    ? Number(item.monthlyRent || 0) *
+                                      Number(item.monthsQty || 0)
+                                    : 0),
                                 0
                               )
                               .toFixed(2)}
@@ -1924,6 +2175,7 @@ export default function CreateQuotation() {
                   setServiceDays("3");
                   setInstallationPeriod("immediate");
                   setPurchasePurpose("store");
+                  setQuotationType("Rental Quotation");
                   setCustomInstallationDate("");
                   setCustomDays("");
                   setCustomPurpose("");

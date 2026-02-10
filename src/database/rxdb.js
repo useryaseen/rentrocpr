@@ -9,7 +9,7 @@ addRxPlugin(RxDBQueryBuilderPlugin);
 addRxPlugin(RxDBUpdatePlugin);
 addRxPlugin(RxDBMigrationSchemaPlugin);
 
-const DB_NAME = "quotationdb_v11";
+const DB_NAME = "quotationdb_v14";
 const REGISTRY_KEY = "__rentro_rxdb_registry__";
 
 export const initDatabase = async () => {

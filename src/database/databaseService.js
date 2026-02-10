@@ -315,7 +315,39 @@ export const databaseService = {
                   monthsQty: 0,
                   ...item
                 }))
-              })
+              }),
+              5: (doc) => ({
+                ...doc,
+                quotationTypes: doc.quotationTypes || [],
+                rentalAmount: doc.rentalAmount || 0,
+                rentalMonthly: doc.rentalMonthly || 0,
+                rentalMonthsQty: doc.rentalMonthsQty || 0,
+                serviceAmount: doc.serviceAmount || 0,
+                salesAmount: doc.salesAmount || 0
+              }),
+              6: (doc) => ({
+                ...doc,
+                products: (doc.products || []).map((item) => ({
+                  monthlyDiscount: 0,
+                  salesUnitAmount: 0,
+                  salesDiscount: 0,
+                  rentToOwnUpfrontUnit: 0,
+                  rentToOwnUpfrontDiscount: 0,
+                  rentToOwnMonthlyUnit: 0,
+                  rentToOwnMonthlyDiscount: 0,
+                  rentToOwnMonthsQty: 0,
+                  ...item
+                }))
+              }),
+              7: (doc) => {
+                const legacyTypes = Array.isArray(doc.quotationTypes) ? doc.quotationTypes : [];
+                const fallbackType = legacyTypes[0] || doc.quotationType || 'Rental Quotation';
+                const { quotationTypes, ...rest } = doc;
+                return {
+                  ...rest,
+                  quotationType: fallbackType
+                };
+              }
             },
         };
       }
@@ -411,7 +443,39 @@ export const databaseService = {
                   monthsQty: 0,
                   ...item
                 }))
-              })
+              }),
+              5: (doc) => ({
+                ...doc,
+                quotationTypes: doc.quotationTypes || [],
+                rentalAmount: doc.rentalAmount || 0,
+                rentalMonthly: doc.rentalMonthly || 0,
+                rentalMonthsQty: doc.rentalMonthsQty || 0,
+                serviceAmount: doc.serviceAmount || 0,
+                salesAmount: doc.salesAmount || 0
+              }),
+              6: (doc) => ({
+                ...doc,
+                products: (doc.products || []).map((item) => ({
+                  monthlyDiscount: 0,
+                  salesUnitAmount: 0,
+                  salesDiscount: 0,
+                  rentToOwnUpfrontUnit: 0,
+                  rentToOwnUpfrontDiscount: 0,
+                  rentToOwnMonthlyUnit: 0,
+                  rentToOwnMonthlyDiscount: 0,
+                  rentToOwnMonthsQty: 0,
+                  ...item
+                }))
+              }),
+              7: (doc) => {
+                const legacyTypes = Array.isArray(doc.quotationTypes) ? doc.quotationTypes : [];
+                const fallbackType = legacyTypes[0] || doc.quotationType || 'Rental Quotation';
+                const { quotationTypes, ...rest } = doc;
+                return {
+                  ...rest,
+                  quotationType: fallbackType
+                };
+              }
             },
         },
       });
@@ -425,7 +489,7 @@ export const databaseService = {
       await this.initialize();
       
       // Validate required fields
-      const requiredFields = ['id', 'clientName', 'productId', 'createdAt', 'status', 'quotationRefNo', 'countryCode'];
+      const requiredFields = ['id', 'clientName', 'productId', 'createdAt', 'status', 'quotationRefNo', 'countryCode', 'quotationType'];
       const missingFields = requiredFields.filter(field => !data[field]);
       
       if (missingFields.length > 0) {
