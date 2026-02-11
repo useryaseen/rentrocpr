@@ -4,6 +4,37 @@ import { Link } from "react-router-dom";
 import QuotationPdf from "./QuotationPdf";
 import { databaseService } from "../database/databaseService";
 
+const resolvePurchaseFor = (entry) => {
+  const purpose = String(entry?.purpose || "").trim();
+  if (purpose.toLowerCase() === "other") {
+    return String(entry?.customPurpose || "").trim();
+  }
+  return purpose;
+};
+
+const buildPurchaseSummary = (data) => {
+  const locations =
+    Array.isArray(data?.purchaseLocations) && data.purchaseLocations.length > 0
+      ? data.purchaseLocations
+      : [
+          {
+            city: data?.clientCity || "",
+            area: data?.clientArea || "",
+            purpose: data?.purchasePurpose || "",
+            customPurpose: "",
+          },
+        ];
+
+  return locations
+    .map((entry) => {
+      const purchaseFor = resolvePurchaseFor(entry);
+      const place = [entry.city, entry.area].filter(Boolean).join(", ");
+      return [place, purchaseFor].filter(Boolean).join(" - ");
+    })
+    .filter(Boolean)
+    .join(" | ");
+};
+
 export default function QuotationHistory() {
   const [rows, setRows] = useState([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -36,6 +67,7 @@ export default function QuotationHistory() {
               date: new Date(data.createdAt).toLocaleDateString(),
               installationPeriod: data.installationPeriod,
               status: data.status,
+              purchaseSummary: buildPurchaseSummary(data),
               raw: data,
             };
           });
@@ -54,6 +86,19 @@ export default function QuotationHistory() {
 
   const buildPdfPayload = (row) => {
     const data = row.raw || {};
+    const purchaseLocations =
+      Array.isArray(data.purchaseLocations) && data.purchaseLocations.length > 0
+        ? data.purchaseLocations
+        : [
+            {
+              city: data.clientCity || "",
+              area: data.clientArea || "",
+              purpose: data.purchasePurpose || "Store",
+              customPurpose: "",
+              label: "",
+            },
+          ];
+    const primaryLocation = purchaseLocations[0] || {};
     const products = data.products || [
       {
         name: row.productName || "",
@@ -71,7 +116,7 @@ export default function QuotationHistory() {
       date: data.createdAt ? new Date(data.createdAt).toLocaleDateString() : "",
       ref: data.quotationRefNo || row.quotationRefNo || row.id,
       companyName: data.clientName || row.clientName || "",
-      companyAddress: data.clientCity || "",
+      companyAddress: primaryLocation.city || data.clientCity || "",
       countryCode: data.countryCode || row.countryCode || "",
       quotationType: data.quotationType || "Rental Quotation",
       attentionTo: data.clientAttendant || data.clientName || "",
@@ -91,61 +136,14 @@ export default function QuotationHistory() {
       serviceMaintenance: data.serviceMaintenance || [],
       otherTerms: data.termsConditions || [],
       warrantyParts: data.warrantyParts || [],
-      clientCity: data.clientCity || "",
+      clientCity: primaryLocation.city || data.clientCity || "",
+      clientArea: primaryLocation.area || data.clientArea || "",
       clientAttendant: data.clientAttendant || "",
-      purchasePurpose: data.purchasePurpose || "",
-    };
-  };
-
-  const buildPrintHtml = (row) => `
-    <!doctype html>
-    <html>
-      <head>
-        <meta charset="utf-8" />
-        <title>${row.quotationRefNo || row.id}</title>
-        <style>
-          body { font-family: Arial, sans-serif; padding: 32px; color: #111; }
-          h1 { margin: 0 0 12px; font-size: 22px; }
-          .meta { margin-bottom: 20px; font-size: 14px; color: #444; }
-          .grid { display: grid; grid-template-columns: 180px 1fr; gap: 8px 16px; }
-          .label { font-weight: 600; }
-          .divider { height: 1px; background: #e5e7eb; margin: 20px 0; }
-        </style>
-      </head>
-      <body>
-        <h1>Quotation</h1>
-        <div class="meta">Reference: ${row.quotationRefNo || row.id}</div>
-        <div class="grid">
-          <div class="label">Country</div><div>${row.countryCode || "-"}</div>
-          <div class="label">Client Name</div><div>${row.clientName || "-"}</div>
-          <div class="label">Product</div><div>${row.productName || "-"}</div>
-          <div class="label">Quantity</div><div>${row.quantity}</div>
-          <div class="label">Quotation Amount</div><div>AED ${Number(row.amount || 0).toFixed(2)}</div>
-          <div class="label">Total Amount</div><div>AED ${Number(row.totalAmount || row.amount || 0).toFixed(2)}</div>
-          <div class="label">Service Timeline</div><div>${row.installationPeriod || "-"}</div>
-          <div class="label">Status</div><div>${row.status || "draft"}</div>
-        </div>
-        <div class="divider"></div>
-        <div>Generated on ${new Date().toLocaleString()}</div>
-      </body>
-    </html>
-  `;
-
-  const handleDownloadPdf = (row) => {
-    try {
-      const payload = buildPdfPayload(row);
-      sessionStorage.setItem("quotationPdfData", JSON.stringify(payload));
-    } catch (error) {
-      console.error("Failed to store PDF data", error);
-    }
-    const printWindow = window.open("", "_blank", "width=900,height=700");
-    if (!printWindow) return;
-    printWindow.document.open();
-    printWindow.document.write(buildPrintHtml(row));
-    printWindow.document.close();
-    printWindow.focus();
-    printWindow.onload = () => {
-      printWindow.print();
+      purchasePurpose:
+        primaryLocation.purpose === "other"
+          ? primaryLocation.customPurpose || data.purchasePurpose || ""
+          : primaryLocation.purpose || data.purchasePurpose || "",
+      purchaseLocations,
     };
   };
 
@@ -166,6 +164,7 @@ export default function QuotationHistory() {
           <span>Country</span>
           <span>Client</span>
           <span>Product</span>
+          <span>City/Area/Purchase For</span>
           <span>Qty</span>
           <span>Total</span>
           <span>Action</span>
@@ -181,6 +180,7 @@ export default function QuotationHistory() {
               <span>{row.countryCode || "-"}</span>
               <span>{row.clientName || "-"}</span>
               <span>{row.productName}</span>
+              <span className="text-xs">{row.purchaseSummary || "-"}</span>
               <span>{row.quantity}</span>
               <span>
                 AED {Number(row.totalAmount || row.amount || 0).toFixed(2)}
@@ -243,6 +243,10 @@ export default function QuotationHistory() {
                 <div>
                   <div className="text-xs text-blue-600">Total</div>
                   <div>AED {Number(row.totalAmount || row.amount || 0).toFixed(2)}</div>
+                </div>
+                <div className="col-span-2">
+                  <div className="text-xs text-blue-600">Project</div>
+                  <div>{row.purchaseSummary || "-"}</div>
                 </div>
               </div>
 

@@ -186,7 +186,7 @@ export const productSchema = {
 
 export const quotationSchema = {
   title: 'Quotation Schema',
-  version: 7,
+  version: 8,
   primaryKey: 'id',
   type: 'object',
   properties: {
@@ -201,6 +201,9 @@ export const quotationSchema = {
       type: 'string'
     },
     clientCity: {
+      type: 'string'
+    },
+    clientArea: {
       type: 'string'
     },
     services: {
@@ -219,6 +222,20 @@ export const quotationSchema = {
     },
     purchasePurpose: {
       type: 'string'
+    },
+    purchaseLocations: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          city: { type: 'string' },
+          area: { type: 'string' },
+          purpose: { type: 'string' },
+          customPurpose: { type: 'string' },
+          purposeLabel: { type: 'string' },
+          label: { type: 'string' }
+        }
+      }
     },
     quotationType: {
       type: 'string'

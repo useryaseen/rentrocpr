@@ -746,7 +746,10 @@ const QuotationPdf = () => {
     companyAddress: "City, Country",
     attentionTo: "Mr. XYZ",
     clientCity: "",
+    clientArea: "",
     clientAttendant: "",
+    purchasePurpose: "Store",
+    purchaseLocations: [],
     subject: "Water Purification Systems - Monthly Rental Plan - 400 GPD",
     quotationType: "Rental Quotation",
     rentalAmount: 0,
@@ -841,6 +844,18 @@ const QuotationPdf = () => {
         const raw = sessionStorage.getItem("quotationPdfData");
         if (!raw) return;
         const parsed = JSON.parse(raw);
+        const normalizedLocations =
+          Array.isArray(parsed.purchaseLocations) && parsed.purchaseLocations.length > 0
+            ? parsed.purchaseLocations
+            : [
+                {
+                  city: parsed.clientCity || "",
+                  area: parsed.clientArea || "",
+                  purpose: parsed.purchasePurpose || "Store",
+                  customPurpose: "",
+                },
+              ];
+        const primaryLocation = normalizedLocations[0] || {};
         setForm((prev) => ({
           ...prev,
           ...parsed,
@@ -849,12 +864,15 @@ const QuotationPdf = () => {
             ? parsed.monthlyRentProducts
             : prev.monthlyRentProducts,
           paymentTerms: parsed.paymentTerms?.length ? parsed.paymentTerms : prev.paymentTerms,
-          purchasePurpose: parsed.purchasePurpose || prev.purchasePurpose,
           maintenanceService: parsed.maintenanceService?.length
             ? parsed.maintenanceService
             : prev.maintenanceService,
           otherTerms: parsed.otherTerms?.length ? parsed.otherTerms : prev.otherTerms,
           warrantyParts: parsed.warrantyParts?.length ? parsed.warrantyParts : prev.warrantyParts,
+          purchaseLocations: normalizedLocations,
+          clientArea: primaryLocation.area || parsed.clientArea || prev.clientArea,
+          purchasePurpose:
+            parsed.purchasePurpose || primaryLocation.purpose || prev.purchasePurpose,
           quotationType:
             parsed.quotationType ||
             (Array.isArray(parsed.quotationTypes) && parsed.quotationTypes[0]) ||
@@ -874,7 +892,8 @@ const QuotationPdf = () => {
             parsed.clientAttendant ||
             parsed.companyName ||
             prev.attentionTo,
-          companyAddress: parsed.clientCity || parsed.companyAddress || prev?.countryCode,
+          companyAddress:
+            primaryLocation.city || parsed.clientCity || parsed.companyAddress || prev?.countryCode,
         }));
       } catch (error) {
         console.error("Failed to load PDF data", error);
@@ -901,6 +920,37 @@ const QuotationPdf = () => {
   };
 
   const allProducts = form.products || [];
+  const purchaseLocations = useMemo(() => {
+    if (Array.isArray(form.purchaseLocations) && form.purchaseLocations.length > 0) {
+      return form.purchaseLocations;
+    }
+    return [
+      {
+        city: form.clientCity || "",
+        area: form.clientArea || "",
+        purpose: form.purchasePurpose || "Store",
+        customPurpose: "",
+      },
+    ];
+  }, [form.purchaseLocations, form.clientCity, form.clientArea, form.purchasePurpose]);
+
+  const purchaseSummary = useMemo(
+    () =>
+      purchaseLocations
+        .map((entry) => {
+          const purpose =
+            entry.purpose === "other"
+              ? String(entry.customPurpose || "").trim()
+              : String(entry.purpose || "").trim();
+          const place = [entry.city, entry.area].filter(Boolean).join(", ");
+          return [purpose, place ? `at ${place}` : ""].filter(Boolean).join(" ");
+        })
+        .filter(Boolean)
+        .join(" | "),
+    [purchaseLocations]
+  );
+
+  const primaryLocation = purchaseLocations[0] || {};
   const quotationType = form.quotationType || "Rental Quotation";
   const hasAnyProducts = allProducts.length > 0;
   const showRental = quotationType === "Rental Quotation";
@@ -949,7 +999,7 @@ const QuotationPdf = () => {
             }
             body { 
               margin: 0; 
-              font-family: Arial, sans-serif;
+              font-family: "Times New Roman", Times, serif;
               font-size: 10px;
               line-height: 1.4;
               -webkit-print-color-adjust: exact !important;
@@ -1088,6 +1138,7 @@ const QuotationPdf = () => {
             .notes {
               margin: 15px 0;
               padding: 4px;
+              padding-left: 15px;
               background: rgba(254, 252, 232, 0.9);
               border-left: 4px solid #eab308;
               font-size: 11px;
@@ -1190,6 +1241,9 @@ const QuotationPdf = () => {
               font-weight: bold;
               color: red;
             }
+              .project-title {
+              color: red;
+              }
             @media print {
               body {
                 margin: 0;
@@ -1321,7 +1375,9 @@ const QuotationPdf = () => {
               <div className="client-info">
                 <div><strong>M/s:</strong> {form.companyName}</div>
                 <div>
-                  {form.clientCity || form?.companyAddress}
+                  {[ primaryLocation.city || form.clientCity || form?.companyAddress]
+                    .filter(Boolean)
+                    .join(", ")}
                   {form.countryCode ? `, ${form.countryCode}` : ""}
                 </div>
                 <div className="mt-1">
@@ -1331,14 +1387,13 @@ const QuotationPdf = () => {
               </div>
 
               <div className="subject">Subject: Water Purification System - Monthly Rent- {form?.products.map((product) => product.name).join(", ")}</div>
-              <div className="subject" >Project / {form?.purchasePurpose} : <span class="text-red-500">{form?.clientCity|| "N/A"}</span></div>
+              <div className="subject ">Project / {purchaseSummary?.split("at")[0]}: <span className="subject project-title">{purchaseSummary?.split("at")[1]?.replace(",", "-")?.split("-")?.reverse()?.join("-") || "N/A"}</span></div>
 
               <p className="mb-1 text-sm">
                 Dear Sir/Madam,<br />
 With reference to your enquiry, regarding the supply of Water Purification Systems on {form?.quotationType || "Rental "}, we are pleased to submit our most competitive quotation for your kind consideration.
               </p>
-              <p className="mb-6 text-lg">Plan for your well-known organization. We hereby submitting our quote for {form?.purchasePurpose}  at 
-<span className="text-red-500">{" "+form?.clientCity}</span> as follows:
+              <p className="mb-6 text-lg">Plan for your well-known organization. We hereby submitting our quote for {purchaseSummary || form?.purchasePurpose || "your project"} as follows:
 </p>
 
 

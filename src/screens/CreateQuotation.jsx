@@ -661,16 +661,48 @@ const installationPeriods = [
   { label: "Custom date", value: "custom_date" },
 ];
 
-const purchasePurposes = [
-  { label: "Store", value: "Store" },
-  { label: "Supermarket", value: "Supermarket" },
-  { label: "Warehouse", value: "Warehouse" },
-  { label: "Office", value: "Office" },
-  { label: "Restaurant", value: "Restaurant" },
-  { label: "Hotel", value: "Hotel" },
-  { label: "Residential", value: "Residential" },
-  { label: "Other", value: "other" },
-];
+const DEFAULT_PURPOSE = "Store";
+
+const createEmptyPurchaseLocation = () => ({
+  city: "",
+  area: "",
+  purpose: DEFAULT_PURPOSE,
+  customPurpose: "",
+});
+
+const normalizePurposeValue = (value) => {
+  const raw = String(value || "").trim();
+  return raw || DEFAULT_PURPOSE;
+};
+
+const resolvePurposeLabel = (entry) => {
+  if (!entry) return DEFAULT_PURPOSE;
+  const purpose = String(entry.purpose || "").trim();
+  if (purpose.toLowerCase() === "other") {
+    return String(entry.customPurpose || "").trim() || DEFAULT_PURPOSE;
+  }
+  return purpose || String(entry.customPurpose || "").trim() || DEFAULT_PURPOSE;
+};
+
+const sanitizePurchaseLocations = (locations) => {
+  const list = Array.isArray(locations) ? locations : [];
+  if (list.length === 0) return [createEmptyPurchaseLocation()];
+  return list.map((entry) => ({
+    city: String(entry?.city || "").trim(),
+    area: String(entry?.area || "").trim(),
+    purpose: normalizePurposeValue(entry?.purpose),
+    customPurpose: String(entry?.customPurpose || "").trim()
+  }));
+};
+
+const formatPurchaseLocation = (entry) => {
+  if (!entry) return "";
+  const purpose = resolvePurposeLabel(entry);
+  const city = String(entry.city || "").trim();
+  const area = String(entry.area || "").trim();
+  const place = [city, area].filter(Boolean).join(", ");
+  return [purpose, place ? `at ${place}` : ""].filter(Boolean).join(" ");
+};
 
 const quotationTypeOptions = [
   { label: "Rental Quotation", value: "Rental Quotation" },
@@ -719,10 +751,11 @@ export default function CreateQuotation() {
   const [clientName, setClientName] = useState("");
   const [clientAttendant, setClientAttendant] = useState("");
   const [clientCity, setClientCity] = useState("");
+  const [clientArea, setClientArea] = useState("");
   const [quantity, setQuantity] = useState(1);
   const [serviceDays, setServiceDays] = useState("3");
   const [installationPeriod, setInstallationPeriod] = useState("immediate");
-  const [purchasePurpose, setPurchasePurpose] = useState("store");
+  const [purchasePurpose, setPurchasePurpose] = useState(DEFAULT_PURPOSE);
   const [quotationType, setQuotationType] = useState("Rental Quotation");
     const [countryCode, setCountryCode] = useState("AE");
   const [quotationRefNo, setQuotationRefNo] = useState("");
@@ -735,6 +768,9 @@ export default function CreateQuotation() {
   const [customInstallationDate, setCustomInstallationDate] = useState("");
   const [customDays, setCustomDays] = useState("");
   const [customPurpose, setCustomPurpose] = useState("");
+  const [purchaseLocations, setPurchaseLocations] = useState([
+    createEmptyPurchaseLocation(),
+  ]);
   const [quotationAmount, setQuotationAmount] = useState("");
   const [services, setServices] = useState([""]);
   const [paymentTerms, setPaymentTerms] = useState([
@@ -918,18 +954,33 @@ export default function CreateQuotation() {
         return;
       }
       const cached = JSON.parse(raw);
+      const cachedLocations = sanitizePurchaseLocations(
+        cached.purchaseLocations?.length
+          ? cached.purchaseLocations
+          : [
+              {
+                city: cached.clientCity || "",
+                area: cached.clientArea || "",
+                purpose: cached.purchasePurpose || DEFAULT_PURPOSE,
+                customPurpose: cached.customPurpose || "",
+              },
+            ]
+      );
+      const primaryCachedLocation = cachedLocations[0] || createEmptyPurchaseLocation();
       setClientName(cached.clientName || "");
       setClientAttendant(cached.clientAttendant || "");
-      setClientCity(cached.clientCity || "");
+      setClientCity(primaryCachedLocation.city || "");
+      setClientArea(primaryCachedLocation.area || "");
       setCountryCode(cached.countryCode || "AE");
       setQuotationRefNo(cached.quotationRefNo || "");
       setServiceDays(cached.serviceDays || "3");
       setInstallationPeriod(cached.installationPeriod || "immediate");
-      setPurchasePurpose(cached.purchasePurpose || "store");
+      setPurchasePurpose(primaryCachedLocation.purpose || DEFAULT_PURPOSE);
       setQuotationType(cached.quotationType || "Rental Quotation");
       setCustomInstallationDate(cached.customInstallationDate || "");
       setCustomDays(cached.customDays || "");
-      setCustomPurpose(cached.customPurpose || "");
+      setCustomPurpose(primaryCachedLocation.customPurpose || "");
+      setPurchaseLocations(cachedLocations);
       setProducts(cached.products || []);
       setServices(cached.services || [""]);
       setPaymentTerms(cached.paymentTerms || []);
@@ -950,6 +1001,7 @@ export default function CreateQuotation() {
       clientName,
       clientAttendant,
       clientCity,
+      clientArea,
       countryCode,
       quotationRefNo,
       serviceDays,
@@ -959,6 +1011,7 @@ export default function CreateQuotation() {
       customInstallationDate,
       customDays,
       customPurpose,
+      purchaseLocations,
       products,
       services,
       paymentTerms,
@@ -977,6 +1030,7 @@ export default function CreateQuotation() {
     clientName,
     clientAttendant,
     clientCity,
+    clientArea,
     countryCode,
     quotationRefNo,
     serviceDays,
@@ -986,6 +1040,7 @@ export default function CreateQuotation() {
     customInstallationDate,
     customDays,
     customPurpose,
+    purchaseLocations,
     products,
     services,
     paymentTerms,
@@ -1005,19 +1060,27 @@ export default function CreateQuotation() {
         if (!isActive || !data) return;
         setClientName(data.clientName || "");
         setClientAttendant(data.clientAttendant || "");
-        setClientCity(data.clientCity || "");
+        const loadedLocations = sanitizePurchaseLocations(
+          data.purchaseLocations?.length
+            ? data.purchaseLocations
+            : [
+                {
+                  city: data.clientCity || "",
+                  area: data.clientArea || "",
+                  purpose: data.purchasePurpose || DEFAULT_PURPOSE,
+                  customPurpose: "",
+                },
+              ]
+        );
+        const primaryLoadedLocation = loadedLocations[0] || createEmptyPurchaseLocation();
+        setPurchaseLocations(loadedLocations);
+        setClientCity(primaryLoadedLocation.city || "");
+        setClientArea(primaryLoadedLocation.area || "");
         setQuantity(Number(data.quantity || 1));
         setServiceDays(data.serviceDays || "3");
         setInstallationPeriod(data.installationPeriod || "immediate");
-        const loadedPurpose = data.purchasePurpose || "store";
-        const isStandardPurpose = purchasePurposes.some(p => p.value === loadedPurpose);
-        if (isStandardPurpose) {
-          setPurchasePurpose(loadedPurpose);
-          setCustomPurpose("");
-        } else {
-          setPurchasePurpose("other");
-          setCustomPurpose(loadedPurpose);
-        }
+        setPurchasePurpose(primaryLoadedLocation.purpose || DEFAULT_PURPOSE);
+        setCustomPurpose(primaryLoadedLocation.customPurpose || "");
         setQuotationAmount(
           data.quotationAmount !== undefined ? String(data.quotationAmount) : ""
         );
@@ -1050,6 +1113,17 @@ export default function CreateQuotation() {
       };
   }, [editId]);
 
+  useEffect(() => {
+    const normalizedLocations = sanitizePurchaseLocations(purchaseLocations);
+    const primary = normalizedLocations[0] || createEmptyPurchaseLocation();
+    const nextPurpose = String(primary.purpose || DEFAULT_PURPOSE).trim() || DEFAULT_PURPOSE;
+    const nextCustomPurpose = String(primary.customPurpose || "");
+    if (clientCity !== primary.city) setClientCity(primary.city);
+    if (clientArea !== primary.area) setClientArea(primary.area);
+    if (purchasePurpose !== nextPurpose) setPurchasePurpose(nextPurpose);
+    if (customPurpose !== nextCustomPurpose) setCustomPurpose(nextCustomPurpose);
+  }, [purchaseLocations, clientCity, clientArea, purchasePurpose, customPurpose]);
+
   // Calculate total amount based on quantity and price
   const calculateTotal = useMemo(() => {
     if (!product || !quotationAmount) return "0.00";
@@ -1073,11 +1147,48 @@ export default function CreateQuotation() {
     }
   };
 
-  const handlePurchasePurposeChange = (value) => {
-    setPurchasePurpose(value);
-    if (value !== "other") {
-      setCustomPurpose("");
-    }
+  const updatePurchaseLocation = (index, key, value) => {
+    setPurchaseLocations((prev) =>
+      prev.map((entry, entryIndex) =>
+        entryIndex === index ? { ...entry, [key]: value } : entry
+      )
+    );
+  };
+
+  const handlePurchasePurposeChange = (index, value) => {
+    setPurchaseLocations((prev) =>
+      prev.map((entry, entryIndex) =>
+        entryIndex === index
+          ? {
+              ...entry,
+              purpose: String(value || ""),
+              customPurpose: "",
+            }
+          : entry
+      )
+    );
+  };
+
+  const addPurchaseLocation = () => {
+    setPurchaseLocations((prev) => {
+      const base = prev[prev.length - 1] || createEmptyPurchaseLocation();
+      return [
+        ...prev,
+        {
+          city: base.city || "",
+          area: base.area || "",
+          purpose: base.purpose || DEFAULT_PURPOSE,
+          customPurpose: base.customPurpose || "",
+        },
+      ];
+    });
+  };
+
+  const removePurchaseLocation = (index) => {
+    setPurchaseLocations((prev) => {
+      if (prev.length <= 1) return prev;
+      return prev.filter((_, entryIndex) => entryIndex !== index);
+    });
   };
 
   const updateListItem = (setter) => (index, value) => {
@@ -1133,11 +1244,14 @@ export default function CreateQuotation() {
 
     const buildPdfPayload = (refNoToUse) => {
       const attendantName = clientAttendant.trim() || clientName.trim();
+      const normalizedLocations = sanitizePurchaseLocations(purchaseLocations);
+      const primaryLocation = normalizedLocations[0] || createEmptyPurchaseLocation();
+      const primaryPurpose = resolvePurposeLabel(primaryLocation) || DEFAULT_PURPOSE;
         return {
           date: new Date().toLocaleDateString(),
           ref: refNoToUse || quotationRefNo || "",
           companyName: clientName,
-          companyAddress: clientCity || "",
+          companyAddress: primaryLocation.city || clientCity || "",
           countryCode,
           attentionTo: attendantName,
           subject: "",
@@ -1177,9 +1291,22 @@ export default function CreateQuotation() {
             description: item.title,
             value: item.value,
           })),
-        clientCity: clientCity || "",
+        clientCity: primaryLocation.city || clientCity || "",
+        clientArea: primaryLocation.area || clientArea || "",
         clientAttendant: attendantName,
-        purchasePurpose: purchasePurpose === "other" ? customPurpose : purchasePurpose,
+        purchasePurpose: primaryPurpose,
+        purchaseLocations: normalizedLocations.map((entry) => ({
+          city: entry.city,
+          area: entry.area,
+          purpose: entry.purpose,
+          customPurpose: entry.customPurpose,
+          purposeLabel: resolvePurposeLabel(entry),
+          label: formatPurchaseLocation(entry),
+        })),
+        purchaseSummary: normalizedLocations
+          .map((entry) => formatPurchaseLocation(entry))
+          .filter(Boolean)
+          .join(" | "),
       };
     };
 
@@ -1200,6 +1327,16 @@ export default function CreateQuotation() {
       return;
     }
 
+    const normalizedLocations = sanitizePurchaseLocations(purchaseLocations);
+    const hasInvalidLocation = normalizedLocations.some((entry) => {
+      const purpose = resolvePurposeLabel(entry);
+      return !entry.city || !purpose;
+    });
+    if (hasInvalidLocation) {
+      setSubmitError("Please complete City and Purchasing For in all purchase entries.");
+      return;
+    }
+
     setIsSubmitting(true);
     setSubmitError(null);
 
@@ -1207,16 +1344,11 @@ export default function CreateQuotation() {
       const now = new Date();
       const yy = String(now.getFullYear()).slice(-2);
       const mm = String(now.getMonth() + 1).padStart(2, "0");
+      const nowIso = new Date().toISOString();
 
       const existing = await databaseService.getAllQuotations();
       const sequence = existing.length + 1;
-      const serial = String(sequence).padStart(5, "0");
-      const generatedRefNo = `RRO/${countryCode}/${yy}/${mm}/${serial}`;
-      const refNoToUse = quotationRefNo || generatedRefNo;
-
-      // Prepare quotation data with all required fields
-      const quotationId = editId || uuidv4();
-      const nowIso = new Date().toISOString();
+      const primaryLocation = normalizedLocations[0] || createEmptyPurchaseLocation();
 
       const primaryProduct = products[0];
       const primaryId =
@@ -1229,40 +1361,65 @@ export default function CreateQuotation() {
             images: primaryProduct.images || [],
           }
         : undefined;
-      
-      const quotationData = {
-        id: quotationId,
-        clientName,
-        clientAttendant: clientAttendant.trim() || clientName.trim(),
-        clientCity: clientCity.trim(),
-        quantity: products.reduce((sum, item) => sum + Number(item.qty || 0), 0),
-        serviceDays: serviceDays === "custom" ? customDays : serviceDays,
-        installationPeriod: installationPeriod === "custom_date" 
-          ? customInstallationDate 
-          : installationPeriod,
-        purchasePurpose: purchasePurpose === "other" ? customPurpose : purchasePurpose,
-        quotationType,
-        quotationAmount: Number(grandTotal || 0),
-        totalAmount: Number(grandTotal || 0),
-        productId: String(primaryId ?? ""),
-        quotationRefNo: refNoToUse,
-        countryCode,
+
+      const allLocationPayload = normalizedLocations.map((entry) => ({
+        city: entry.city,
+        area: entry.area,
+        purpose: entry.purpose,
+        customPurpose: entry.customPurpose,
+        purposeLabel: resolvePurposeLabel(entry),
+        label: formatPurchaseLocation(entry),
+      }));
+
+      const buildRefNoBySerial = (serialNumber) =>
+        `RRO/${countryCode}/${yy}/${mm}/${String(serialNumber).padStart(5, "0")}`;
+
+      const buildQuotationDataForLocation = (locationEntry, locationIndex) => {
+        const normalizedPurpose =
+          resolvePurposeLabel(locationEntry) || DEFAULT_PURPOSE;
+        const fallbackRefNo = buildRefNoBySerial(sequence + locationIndex);
+        const refNoToUse = editId
+          ? quotationRefNo || fallbackRefNo
+          : normalizedLocations.length === 1 && quotationRefNo
+          ? quotationRefNo
+          : fallbackRefNo;
+
+        return {
+          id: editId || uuidv4(),
+          clientName,
+          clientAttendant: clientAttendant.trim() || clientName.trim(),
+          clientCity: (locationEntry.city || "").trim(),
+          clientArea: (locationEntry.area || "").trim(),
+          quantity: products.reduce((sum, item) => sum + Number(item.qty || 0), 0),
+          serviceDays: serviceDays === "custom" ? customDays : serviceDays,
+          installationPeriod:
+            installationPeriod === "custom_date"
+              ? customInstallationDate
+              : installationPeriod,
+          purchasePurpose: normalizedPurpose,
+          purchaseLocations: editId ? allLocationPayload : [allLocationPayload[locationIndex]],
+          quotationType,
+          quotationAmount: Number(grandTotal || 0),
+          totalAmount: Number(grandTotal || 0),
+          productId: String(primaryId ?? ""),
+          quotationRefNo: refNoToUse,
+          countryCode,
           productDetails,
-        products: products.map((item, index) => ({
-          id: String(item.productId ?? item.id ?? ""),
-          name: item.name || "",
-          capacity: item.capacity || "",
-          qty: Number(item.qty || 0),
-          discount: Number(item.discount || 0),
-          installationCharge: Number(item.installationCharge || 0),
-          monthlyRent: Number(item.monthlyRent || 0),
-          monthlyDiscount: Number(item.monthlyDiscount || 0),
-          monthsQty: Number(item.monthsQty || 0),
-          salesUnitAmount: Number(item.salesUnitAmount || 0),
-          salesDiscount: Number(item.salesDiscount || 0),
-          rentToOwnUpfrontUnit: Number(item.rentToOwnUpfrontUnit || 0),
-          rentToOwnUpfrontDiscount: Number(item.rentToOwnUpfrontDiscount || 0),
-          rentToOwnMonthlyUnit: Number(item.rentToOwnMonthlyUnit || 0),
+          products: products.map((item, index) => ({
+            id: String(item.productId ?? item.id ?? ""),
+            name: item.name || "",
+            capacity: item.capacity || "",
+            qty: Number(item.qty || 0),
+            discount: Number(item.discount || 0),
+            installationCharge: Number(item.installationCharge || 0),
+            monthlyRent: Number(item.monthlyRent || 0),
+            monthlyDiscount: Number(item.monthlyDiscount || 0),
+            monthsQty: Number(item.monthsQty || 0),
+            salesUnitAmount: Number(item.salesUnitAmount || 0),
+            salesDiscount: Number(item.salesDiscount || 0),
+            rentToOwnUpfrontUnit: Number(item.rentToOwnUpfrontUnit || 0),
+            rentToOwnUpfrontDiscount: Number(item.rentToOwnUpfrontDiscount || 0),
+            rentToOwnMonthlyUnit: Number(item.rentToOwnMonthlyUnit || 0),
             rentToOwnMonthlyDiscount: Number(item.rentToOwnMonthlyDiscount || 0),
             rentToOwnMonthsQty: Number(item.rentToOwnMonthsQty || 0),
             total: productTotals[index] || 0,
@@ -1280,16 +1437,20 @@ export default function CreateQuotation() {
           status: "draft",
           createdAt: nowIso,
           updatedAt: nowIso,
-        _deleted: false,
-        _attachments: {},
-        _meta: {
-          lwt: Date.now()
-        }
+          _deleted: false,
+          _attachments: {},
+          _meta: {
+            lwt: Date.now()
+          }
+        };
       };
 
-      console.log("Creating quotation with data:", quotationData);
-      
-        const pdfPayload = buildPdfPayload(refNoToUse);
+      const firstRefNoForPdf = editId
+        ? quotationRefNo || buildRefNoBySerial(sequence)
+        : normalizedLocations.length === 1 && quotationRefNo
+        ? quotationRefNo
+        : buildRefNoBySerial(sequence);
+      const pdfPayload = buildPdfPayload(firstRefNoForPdf);
         if (navigateToPdf) {
           try {
             sessionStorage.setItem("quotationPdfData", JSON.stringify(pdfPayload));
@@ -1298,9 +1459,19 @@ export default function CreateQuotation() {
           }
         }
 
-      const result = editId
-        ? await databaseService.updateQuotation(editId, quotationData)
-        : await databaseService.createQuotation(quotationData);
+      let result;
+      if (editId) {
+        const editPayload = buildQuotationDataForLocation(primaryLocation, 0);
+        result = await databaseService.updateQuotation(editId, editPayload);
+      } else {
+        const created = [];
+        for (let i = 0; i < normalizedLocations.length; i += 1) {
+          const payload = buildQuotationDataForLocation(normalizedLocations[i], i);
+          const createdDoc = await databaseService.createQuotation(payload);
+          created.push(createdDoc);
+        }
+        result = created;
+      }
       
         setSubmitSuccess(true);
         if (!navigateToPdf) {
@@ -1310,14 +1481,18 @@ export default function CreateQuotation() {
         // Reset form
         if (!editId && !navigateToPdf) {
           setClientName("");
+          setClientAttendant("");
           setQuantity(1);
           setServiceDays("3");
           setInstallationPeriod("immediate");
-          setPurchasePurpose("store");
+          setClientCity("");
+          setClientArea("");
+          setPurchasePurpose(DEFAULT_PURPOSE);
           setQuotationType("Rental Quotation");
           setCustomInstallationDate("");
           setCustomDays("");
           setCustomPurpose("");
+          setPurchaseLocations([createEmptyPurchaseLocation()]);
           setQuotationAmount("");
           setQuotationRefNo("");
           setCountryCode("AE");
@@ -1500,18 +1675,84 @@ export default function CreateQuotation() {
               </div>
 
               <div className="mb-6">
-                <label htmlFor="client-city" className="block text-sm font-medium text-gray-900 mb-2">
-                  Client City
-                </label>
-                <input
-                  id="client-city"
-                  type="text"
-                  placeholder="Enter city"
-                  value={clientCity}
-                  onChange={(event) => setClientCity(event.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                  disabled={isSubmitting}
-                />
+                <div className="mb-2 flex items-center justify-between">
+                  <label className="block text-sm font-medium text-gray-900">
+                    Purchase Locations <span className="text-red-500">*</span>
+                  </label>
+                  <button
+                    type="button"
+                    onClick={addPurchaseLocation}
+                    className="rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700"
+                    disabled={isSubmitting}
+                  >
+                    Add
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  {purchaseLocations.map((entry, index) => (
+                    <div
+                      key={`purchase-location-${index}`}
+                      className="rounded-lg border border-gray-200 p-3"
+                    >
+                      <div className="mb-2 flex items-center justify-between">
+                        <span className="text-xs font-semibold text-gray-500">
+                          Purchase For #{index + 1}
+                        </span>
+                        {purchaseLocations.length > 1 && (
+                          <button
+                            type="button"
+                            onClick={() => removePurchaseLocation(index)}
+                            className="rounded bg-red-500 px-2 py-1 text-xs text-white hover:bg-red-600"
+                            disabled={isSubmitting}
+                          >
+                            Remove
+                          </button>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                        <label className="text-xs text-gray-500">
+                          City
+                          <input
+                            type="text"
+                            placeholder="Enter city"
+                            value={entry.city}
+                            onChange={(event) =>
+                              updatePurchaseLocation(index, "city", event.target.value)
+                            }
+                            className="mt-1 w-full rounded border px-3 py-2 text-sm"
+                            disabled={isSubmitting}
+                          />
+                        </label>
+                        <label className="text-xs text-gray-500">
+                          Area
+                          <input
+                            type="text"
+                            placeholder="Enter area"
+                            value={entry.area}
+                            onChange={(event) =>
+                              updatePurchaseLocation(index, "area", event.target.value)
+                            }
+                            className="mt-1 w-full rounded border px-3 py-2 text-sm"
+                            disabled={isSubmitting}
+                          />
+                        </label>
+                        <label className="text-xs text-gray-500">
+                          Purchasing For
+                          <input
+                            type="text"
+                            placeholder="Store / Supermarket / Office ..."
+                            value={entry.purpose}
+                            onChange={(event) =>
+                              handlePurchasePurposeChange(index, event.target.value)
+                            }
+                            className="mt-1 w-full rounded border px-3 py-2 text-sm"
+                            disabled={isSubmitting}
+                          />
+                        </label>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
 
               <div className="mb-6">
@@ -1943,38 +2184,7 @@ export default function CreateQuotation() {
                 )}
               </div>
 
-              {/* Purchasing For */}
-              <div className="mb-8">
-                <label className="block text-sm font-medium text-gray-900 mb-2">
-                  Purchasing For <span className="text-red-500">*</span>
-                </label>
-                <select 
-                  value={purchasePurpose} 
-                  onChange={(event) => handlePurchasePurposeChange(event.target.value)}
-                  className={`w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors appearance-none bg-white ${
-                    isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
-                  }`}
-                  disabled={isSubmitting}
-                >
-                  {purchasePurposes.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              {purchasePurpose === "other" && (
-                  <div className="mt-4">
-                    <input
-                      type="text"
-                      placeholder="Specify purpose"
-                      value={customPurpose}
-                      onChange={(event) => setCustomPurpose(event.target.value)}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
-                      disabled={isSubmitting}
-                    />
-                  </div>
-                )}
-              </div>
+              {/* Purchasing For is configured in Purchase Locations section */}
 
 
               <div className="mb-8">
@@ -2171,14 +2381,16 @@ export default function CreateQuotation() {
                   setClientName("");
                   setClientAttendant("");
                   setClientCity("");
+                  setClientArea("");
                   setQuantity(1);
                   setServiceDays("3");
                   setInstallationPeriod("immediate");
-                  setPurchasePurpose("store");
+                  setPurchasePurpose(DEFAULT_PURPOSE);
                   setQuotationType("Rental Quotation");
                   setCustomInstallationDate("");
                   setCustomDays("");
                   setCustomPurpose("");
+                  setPurchaseLocations([createEmptyPurchaseLocation()]);
                   setQuotationAmount("");
                   setQuotationRefNo("");
                   setCountryCode("AE");

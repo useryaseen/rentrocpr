@@ -229,6 +229,18 @@ const buildRefNo = (createdAt, fallbackSerial, countryCode = 'AE') => {
   return `RRO/${countryCode}/${yy}/${mm}/${serial}`;
 };
 
+const sanitizeForCollectionSchema = (collection, data) => {
+  const properties = collection?.schema?.jsonSchema?.properties || {};
+  const allowedKeys = new Set(Object.keys(properties));
+  const output = {};
+  Object.keys(data || {}).forEach((key) => {
+    if (allowedKeys.has(key)) {
+      output[key] = data[key];
+    }
+  });
+  return output;
+};
+
 let db = null;
 
 export const databaseService = {
@@ -346,6 +358,43 @@ export const databaseService = {
                 return {
                   ...rest,
                   quotationType: fallbackType
+                };
+              },
+              8: (doc) => {
+                const city = String(doc.clientCity || '');
+                const area = String(doc.clientArea || '');
+                const purchasePurpose = String(doc.purchasePurpose || 'Store');
+                const hasKnownPurpose = [
+                  'Store',
+                  'Supermarket',
+                  'Warehouse',
+                  'Office',
+                  'Restaurant',
+                  'Hotel',
+                  'Residential',
+                  'other',
+                ].some((value) => value.toLowerCase() === purchasePurpose.toLowerCase());
+                const purpose = hasKnownPurpose
+                  ? ['Store','Supermarket','Warehouse','Office','Restaurant','Hotel','Residential','other'].find(
+                      (value) => value.toLowerCase() === purchasePurpose.toLowerCase()
+                    ) || 'Store'
+                  : 'other';
+                const customPurpose = purpose === 'other' ? purchasePurpose : '';
+                const baseLocation = {
+                  city,
+                  area,
+                  purpose,
+                  customPurpose,
+                  purposeLabel: purpose === 'other' ? customPurpose : purpose,
+                  label: [purpose === 'other' ? customPurpose : purpose, [city, area].filter(Boolean).join(', ')].filter(Boolean).join(' at ')
+                };
+                return {
+                  ...doc,
+                  clientArea: area,
+                  purchaseLocations:
+                    Array.isArray(doc.purchaseLocations) && doc.purchaseLocations.length > 0
+                      ? doc.purchaseLocations
+                      : [baseLocation]
                 };
               }
             },
@@ -475,6 +524,43 @@ export const databaseService = {
                   ...rest,
                   quotationType: fallbackType
                 };
+              },
+              8: (doc) => {
+                const city = String(doc.clientCity || '');
+                const area = String(doc.clientArea || '');
+                const purchasePurpose = String(doc.purchasePurpose || 'Store');
+                const hasKnownPurpose = [
+                  'Store',
+                  'Supermarket',
+                  'Warehouse',
+                  'Office',
+                  'Restaurant',
+                  'Hotel',
+                  'Residential',
+                  'other',
+                ].some((value) => value.toLowerCase() === purchasePurpose.toLowerCase());
+                const purpose = hasKnownPurpose
+                  ? ['Store','Supermarket','Warehouse','Office','Restaurant','Hotel','Residential','other'].find(
+                      (value) => value.toLowerCase() === purchasePurpose.toLowerCase()
+                    ) || 'Store'
+                  : 'other';
+                const customPurpose = purpose === 'other' ? purchasePurpose : '';
+                const baseLocation = {
+                  city,
+                  area,
+                  purpose,
+                  customPurpose,
+                  purposeLabel: purpose === 'other' ? customPurpose : purpose,
+                  label: [purpose === 'other' ? customPurpose : purpose, [city, area].filter(Boolean).join(', ')].filter(Boolean).join(' at ')
+                };
+                return {
+                  ...doc,
+                  clientArea: area,
+                  purchaseLocations:
+                    Array.isArray(doc.purchaseLocations) && doc.purchaseLocations.length > 0
+                      ? doc.purchaseLocations
+                      : [baseLocation]
+                };
               }
             },
         },
@@ -527,7 +613,8 @@ export const databaseService = {
       };
       
       const collection = await this.getQuotationsCollection();
-      const result = await collection.insert(quotationData);
+      const finalData = sanitizeForCollectionSchema(collection, quotationData);
+      const result = await collection.insert(finalData);
       
       console.log('Quotation created successfully:', result);
       return result;
@@ -572,10 +659,15 @@ export const databaseService = {
         throw new Error(`Quotation with ID ${id} not found`);
       }
       
+      const patchData = sanitizeForCollectionSchema(collection, {
+        ...data,
+        updatedAt: new Date().toISOString()
+      });
+      delete patchData.id;
+
       await doc.update({
         $set: {
-          ...data,
-          updatedAt: new Date().toISOString()
+          ...patchData
         }
       });
       
