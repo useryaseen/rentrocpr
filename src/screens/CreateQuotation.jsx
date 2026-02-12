@@ -724,6 +724,7 @@ export default function CreateQuotation() {
   const location = useLocation();
   const { id: editId } = useParams();
   const navigate = useNavigate();
+  const incomingQuotationType = location.state?.quotationType;
   const storedProduct = useMemo(() => {
     try {
       const raw = sessionStorage.getItem("selectedProduct");
@@ -742,6 +743,14 @@ export default function CreateQuotation() {
       return null;
     }
   }, []);
+  const storedQuotationType = useMemo(() => {
+    try {
+      return sessionStorage.getItem("selectedQuotationType");
+    } catch (error) {
+      console.error("Failed to read stored quotation type", error);
+      return null;
+    }
+  }, []);
   const [selectedProduct, setSelectedProduct] = useState(storedProduct);
   const [products, setProducts] = useState(
     location.state?.products ??
@@ -756,12 +765,15 @@ export default function CreateQuotation() {
   const [serviceDays, setServiceDays] = useState("3");
   const [installationPeriod, setInstallationPeriod] = useState("immediate");
   const [purchasePurpose, setPurchasePurpose] = useState(DEFAULT_PURPOSE);
-  const [quotationType, setQuotationType] = useState("Rental Quotation");
+  const [quotationType, setQuotationType] = useState(
+    incomingQuotationType || storedQuotationType || "Rental Quotation"
+  );
     const [countryCode, setCountryCode] = useState("AE");
   const [quotationRefNo, setQuotationRefNo] = useState("");
   const [isLoadingQuotation, setIsLoadingQuotation] = useState(false);
   const [showPdfPreview, setShowPdfPreview] = useState(false);
   const [showSuccessDialog, setShowSuccessDialog] = useState(false);
+  const [showQuotationTypeSelector, setShowQuotationTypeSelector] = useState(false);
   const [productId, setProductId] = useState("");
   const [formCacheLoaded, setFormCacheLoaded] = useState(false);
   const product = selectedProduct;
@@ -793,6 +805,14 @@ export default function CreateQuotation() {
   const [submitError, setSubmitError] = useState(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
   const pageTitle = editId ? "Edit Quotation" : "Create Quotation";
+  const inputClass =
+    "w-full px-4 py-3 border border-slate-300 rounded-xl bg-white shadow-sm focus:ring-2 focus:ring-blue-200 focus:border-blue-500 transition-colors";
+  const sectionClass =
+    "mb-6 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 md:p-5";
+  const addButtonClass =
+    "rounded-lg bg-blue-600 px-3 py-1.5 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60 disabled:cursor-not-allowed";
+  const removeButtonClass =
+    "rounded-lg border border-rose-200 bg-white px-3 py-1.5 text-xs font-semibold text-rose-600 shadow-sm transition hover:border-rose-300 hover:bg-rose-50";
 
   // This useEffect was causing an infinite loop and has been removed.
   // The logic has been moved to the useEffect that handles location state changes.
@@ -891,6 +911,16 @@ export default function CreateQuotation() {
 
   useEffect(() => {
     const incomingProducts = location.state?.products;
+    const nextQuotationType = location.state?.quotationType;
+
+    if (!editId && nextQuotationType) {
+      setQuotationType(nextQuotationType);
+      try {
+        sessionStorage.setItem("selectedQuotationType", nextQuotationType);
+      } catch (error) {
+        console.error("Failed to cache quotation type", error);
+      }
+    }
 
     if (incomingProducts) {
       const extractCapacity = (name) => {
@@ -936,7 +966,7 @@ export default function CreateQuotation() {
         return newProductList;
       });
     }
-  }, [location.state, location.key]);
+  }, [editId, location.state, location.key]);
 
   useEffect(() => {
     // If we have products coming from the navigation state, we should not load from cache,
@@ -1048,6 +1078,15 @@ export default function CreateQuotation() {
     warrantyItems,
     serviceMaintenance
   ]);
+
+  useEffect(() => {
+    if (editId) return;
+    try {
+      sessionStorage.setItem("selectedQuotationType", quotationType);
+    } catch (error) {
+      console.error("Failed to persist selected quotation type", error);
+    }
+  }, [editId, quotationType]);
 
   useEffect(() => {
     if (!editId) return;
@@ -1509,6 +1548,7 @@ export default function CreateQuotation() {
           ]);
           sessionStorage.removeItem("quotationFormCache");
           sessionStorage.removeItem("selectedProducts"); // Clear selected products cache for NewQuotation
+          sessionStorage.removeItem("selectedQuotationType");
         }
       
         // Auto-hide success message
@@ -1544,9 +1584,9 @@ export default function CreateQuotation() {
   };
 
   return (
-      <section className="min-h-screen bg-gray-50 p-4 md:p-6">
+      <section className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/50 to-cyan-50/40 p-4 md:p-6">
         <div className="max-w-7xl mx-auto">
-          <div className="mb-8">
+          <div className="mb-8 rounded-2xl border border-blue-100 bg-white/90 px-5 py-5 shadow-sm backdrop-blur">
             <h2 className="text-2xl md:text-3xl font-bold text-gray-900">{pageTitle}</h2>
             <p className="text-gray-600 mt-2">Fill in client details and confirm the selected product.</p>
           </div>
@@ -1583,7 +1623,7 @@ export default function CreateQuotation() {
         ) : (
           <div className=" gap-6" onKeyPress={handleKeyPress}>
             {/* Selected Products */}
-            <div className="bg-white rounded-xl shadow-md p-6">
+            <div className="mb-6 rounded-2xl border border-white bg-white/95 p-6 shadow-lg shadow-blue-100/40">
               <h3 className="text-lg font-semibold text-gray-900 mb-4">
                 Selected Products
               </h3>
@@ -1602,7 +1642,7 @@ export default function CreateQuotation() {
                     return (
                       <div
                         key={itemId}
-                        className="flex flex-col sm:flex-row gap-4 p-4 border border-gray-200 rounded-lg"
+                        className="flex flex-col sm:flex-row gap-4 rounded-xl border border-gray-200/80 bg-slate-50/70 p-4"
                       >
                         <div className="w-full sm:w-32 h-32 bg-gray-100 rounded-lg overflow-hidden flex-shrink-0">
                           {item.images?.[0]?.imageUrl ? (
@@ -1641,7 +1681,11 @@ export default function CreateQuotation() {
             </div>
 
             {/* Quotation Form */}
-            <div className="bg-white rounded-xl shadow-md p-6 col-span-2">
+            <div className="rounded-2xl border border-white bg-white/95 p-6 shadow-lg shadow-blue-100/40 col-span-2">
+              <div className="mb-6 rounded-xl border border-blue-100 bg-gradient-to-r from-blue-50 to-cyan-50 p-4">
+                <h3 className="text-lg font-semibold text-slate-900">Quotation Details</h3>
+                <p className="mt-1 text-sm text-slate-600">Complete the form below to create a clean and professional quotation.</p>
+              </div>
               {/* Client Name */}
               <div className="mb-6">
                 <label htmlFor="client-name" className="block text-sm font-medium text-gray-900 mb-2">
@@ -1653,7 +1697,7 @@ export default function CreateQuotation() {
                   placeholder="Enter client name"
                   value={clientName}
                   onChange={(event) => setClientName(event.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  className={inputClass}
                   required
                   disabled={isSubmitting}
                 />
@@ -1669,12 +1713,65 @@ export default function CreateQuotation() {
                   placeholder="Enter attendant name (optional)"
                   value={clientAttendant}
                   onChange={(event) => setClientAttendant(event.target.value)}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                  className={inputClass}
                   disabled={isSubmitting}
                 />
               </div>
 
-              <div className="mb-6">
+              <div className="mb-6 rounded-xl border border-blue-100 bg-blue-50/70 p-4">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">
+                      Quotation Type
+                    </p>
+                    <p className="text-base font-semibold text-blue-900">{quotationType}</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setShowQuotationTypeSelector((prev) => !prev)
+                    }
+                    className="rounded-lg bg-white px-4 py-2 text-sm font-medium text-blue-700 shadow-sm hover:bg-blue-100"
+                  >
+                    {showQuotationTypeSelector ? "Hide Options" : "Change Type"}
+                  </button>
+                </div>
+              </div>
+
+              {showQuotationTypeSelector && (
+              <div className={sectionClass}>
+                <label className="block text-sm font-medium text-gray-900 mb-2">
+                  Select Quotation Type <span className="text-red-500">*</span>
+                </label>
+                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                  {quotationTypeOptions.map((option) => (
+                    <label
+                      key={option.value}
+                      className={`inline-flex items-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-medium transition-all ${
+                        quotationType === option.value
+                          ? "border-blue-500 bg-gradient-to-r from-blue-50 to-cyan-50 text-blue-800 shadow-sm"
+                          : "border-gray-300 bg-white text-gray-700 hover:border-blue-300 hover:bg-blue-50/40"
+                      } ${isSubmitting ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
+                    >
+                      <input
+                        type="radio"
+                        name="quotation-type"
+                        value={option.value}
+                        checked={quotationType === option.value}
+                        onChange={(event) => {
+                          setQuotationType(event.target.value);
+                        }}
+                        className="h-4 w-4 text-blue-600"
+                        disabled={isSubmitting}
+                      />
+                      <span>{option.label}</span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              )}
+
+              <div className={sectionClass}>
                 <div className="mb-2 flex items-center justify-between">
                   <label className="block text-sm font-medium text-gray-900">
                     Purchase Locations <span className="text-red-500">*</span>
@@ -1682,7 +1779,7 @@ export default function CreateQuotation() {
                   <button
                     type="button"
                     onClick={addPurchaseLocation}
-                    className="rounded bg-blue-600 px-3 py-1 text-sm text-white hover:bg-blue-700"
+                    className={addButtonClass}
                     disabled={isSubmitting}
                   >
                     Add
@@ -1692,7 +1789,7 @@ export default function CreateQuotation() {
                   {purchaseLocations.map((entry, index) => (
                     <div
                       key={`purchase-location-${index}`}
-                      className="rounded-lg border border-gray-200 p-3"
+                      className="rounded-xl border border-slate-200 bg-white p-3"
                     >
                       <div className="mb-2 flex items-center justify-between">
                         <span className="text-xs font-semibold text-gray-500">
@@ -1702,7 +1799,7 @@ export default function CreateQuotation() {
                           <button
                             type="button"
                             onClick={() => removePurchaseLocation(index)}
-                            className="rounded bg-red-500 px-2 py-1 text-xs text-white hover:bg-red-600"
+                            className={removeButtonClass}
                             disabled={isSubmitting}
                           >
                             Remove
@@ -1719,7 +1816,7 @@ export default function CreateQuotation() {
                             onChange={(event) =>
                               updatePurchaseLocation(index, "city", event.target.value)
                             }
-                            className="mt-1 w-full rounded border px-3 py-2 text-sm"
+                            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                             disabled={isSubmitting}
                           />
                         </label>
@@ -1732,7 +1829,7 @@ export default function CreateQuotation() {
                             onChange={(event) =>
                               updatePurchaseLocation(index, "area", event.target.value)
                             }
-                            className="mt-1 w-full rounded border px-3 py-2 text-sm"
+                            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                             disabled={isSubmitting}
                           />
                         </label>
@@ -1745,7 +1842,7 @@ export default function CreateQuotation() {
                             onChange={(event) =>
                               handlePurchasePurposeChange(index, event.target.value)
                             }
-                            className="mt-1 w-full rounded border px-3 py-2 text-sm"
+                            className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                             disabled={isSubmitting}
                           />
                         </label>
@@ -1755,36 +1852,7 @@ export default function CreateQuotation() {
                 </div>
               </div>
 
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-gray-900 mb-2">
-                  Quotation Type <span className="text-red-500">*</span>
-                </label>
-                <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {quotationTypeOptions.map((option) => (
-                    <label
-                      key={option.value}
-                      className={`inline-flex items-center gap-2 rounded border px-3 py-2 text-sm ${
-                        quotationType === option.value
-                          ? "border-blue-500 bg-blue-50 text-blue-700"
-                          : "border-gray-300 bg-white text-gray-700"
-                      } ${isSubmitting ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
-                    >
-                      <input
-                        type="radio"
-                        name="quotation-type"
-                        value={option.value}
-                        checked={quotationType === option.value}
-                        onChange={(event) => setQuotationType(event.target.value)}
-                        className="h-4 w-4 text-blue-600"
-                        disabled={isSubmitting}
-                      />
-                      <span>{option.label}</span>
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <div className="mb-6">
+              <div className={sectionClass}>
                 <label className="block text-sm font-medium text-gray-900 mb-2">
                   Selected Products
                 </label>
@@ -1797,7 +1865,7 @@ export default function CreateQuotation() {
                     {products.map((item, index) => (
                       <div
                         key={`${item.productId || item.id || index}`}
-                        className="grid grid-cols-1 gap-2 rounded border border-gray-200 p-3 md:grid-cols-7"
+                        className="grid grid-cols-1 gap-2 rounded-xl border border-slate-200 bg-white p-3 md:grid-cols-7"
                       >
                         <div className="md:col-span-2">
                           <div className="text-xs text-gray-500">Product</div>
@@ -2070,7 +2138,7 @@ export default function CreateQuotation() {
                   )}
                 </div>
 
-              <div className="mb-6">
+              <div className={sectionClass}>
                 <label htmlFor="country-code" className="block text-sm font-medium text-gray-900 mb-2">
                   Country <span className="text-red-500">*</span>
                 </label>
@@ -2094,7 +2162,7 @@ export default function CreateQuotation() {
                       }
                     }
                   }}
-                  className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors appearance-none bg-white"
+                  className={`${inputClass} appearance-none`}
                   disabled={isSubmitting}
                 >
                   {countryOptions.map((option) => (
@@ -2108,7 +2176,7 @@ export default function CreateQuotation() {
               {/* Product totals are handled in the Selected Products section */}
 
               {/* Service Timeline */}
-              <div className="mb-6">
+              <div className={sectionClass}>
                 <label className="block text-sm font-medium text-gray-900 mb-3">
                   Service Timeline <span className="text-red-500">*</span>
                 </label>
@@ -2143,7 +2211,7 @@ export default function CreateQuotation() {
                       placeholder="Enter number of days"
                       value={customDays}
                       onChange={(event) => setCustomDays(event.target.value)}
-                      className="flex-1 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      className={inputClass}
                       disabled={isSubmitting}
                     />
                     <span className="text-gray-600 font-medium">days</span>
@@ -2152,14 +2220,14 @@ export default function CreateQuotation() {
               </div>
 
               {/* Installation Period */}
-              <div className="mb-6">
+              <div className={sectionClass}>
                 <label className="block text-sm font-medium text-gray-900 mb-2">
                   Installation Period <span className="text-red-500">*</span>
                 </label>
                 <select 
                   value={installationPeriod} 
                   onChange={(event) => handleInstallationPeriodChange(event.target.value)}
-                  className={`w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors appearance-none bg-white ${
+                  className={`${inputClass} appearance-none ${
                     isSubmitting ? 'opacity-50 cursor-not-allowed' : ''
                   }`}
                   disabled={isSubmitting}
@@ -2177,7 +2245,7 @@ export default function CreateQuotation() {
                       value={customInstallationDate}
                       onChange={(event) => setCustomInstallationDate(event.target.value)}
                       min={new Date().toISOString().split('T')[0]}
-                      className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      className={inputClass}
                       disabled={isSubmitting}
                     />
                   </div>
@@ -2187,7 +2255,7 @@ export default function CreateQuotation() {
               {/* Purchasing For is configured in Purchase Locations section */}
 
 
-              <div className="mb-8">
+              <div className={sectionClass}>
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-sm font-medium text-gray-900">
                     Payment Terms
@@ -2195,7 +2263,7 @@ export default function CreateQuotation() {
                   <button
                     type="button"
                     onClick={() => addListItem(setPaymentTerms)}
-                    className="px-3 py-1 rounded bg-blue-600 text-white text-sm"
+                    className={addButtonClass}
                   >
                     Add
                   </button>
@@ -2208,12 +2276,12 @@ export default function CreateQuotation() {
                       onChange={(event) =>
                         updateListItem(setPaymentTerms)(index, event.target.value)
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                     />
                     <button
                       type="button"
                       onClick={() => removeListItem(setPaymentTerms, index)}
-                      className="px-2 py-1 text-xs rounded bg-red-500 text-white"
+                      className={removeButtonClass}
                     >
                       Remove
                     </button>
@@ -2221,7 +2289,7 @@ export default function CreateQuotation() {
                 ))}
               </div>
 
-              <div className="mb-8">
+              <div className={sectionClass}>
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-sm font-medium text-gray-900">
                     Terms & Conditions
@@ -2229,7 +2297,7 @@ export default function CreateQuotation() {
                   <button
                     type="button"
                     onClick={() => addListItem(setTermsConditions)}
-                    className="px-3 py-1 rounded bg-blue-600 text-white text-sm"
+                    className={addButtonClass}
                   >
                     Add
                   </button>
@@ -2242,12 +2310,12 @@ export default function CreateQuotation() {
                       onChange={(event) =>
                         updateListItem(setTermsConditions)(index, event.target.value)
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                     />
                     <button
                       type="button"
                       onClick={() => removeListItem(setTermsConditions, index)}
-                      className="px-2 py-1 text-xs rounded bg-red-500 text-white"
+                      className={removeButtonClass}
                     >
                       Remove
                     </button>
@@ -2255,7 +2323,7 @@ export default function CreateQuotation() {
                 ))}
               </div>
 
-              <div className="mb-8">
+              <div className={sectionClass}>
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-sm font-medium text-gray-900">
                     Warranty & Parts
@@ -2263,7 +2331,7 @@ export default function CreateQuotation() {
                   <button
                     type="button"
                     onClick={addWarrantyItem}
-                    className="px-3 py-1 rounded bg-blue-600 text-white text-sm"
+                    className={addButtonClass}
                   >
                     Add
                   </button>
@@ -2277,7 +2345,7 @@ export default function CreateQuotation() {
                       onChange={(event) =>
                         updateWarrantyItem(index, "title", event.target.value)
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                     />
                     <input
                       type="text"
@@ -2286,12 +2354,12 @@ export default function CreateQuotation() {
                       onChange={(event) =>
                         updateWarrantyItem(index, "value", event.target.value)
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                     />
                     <button
                       type="button"
                       onClick={() => removeWarrantyItem(index)}
-                      className="px-2 py-1 text-xs rounded bg-red-500 text-white"
+                      className={removeButtonClass}
                     >
                       Remove
                     </button>
@@ -2299,7 +2367,7 @@ export default function CreateQuotation() {
                 ))}
               </div>
 
-              <div className="mb-8">
+              <div className={sectionClass}>
                 <div className="flex items-center justify-between mb-2">
                   <label className="block text-sm font-medium text-gray-900">
                     Service & Maintenance (Rentro vs Others)
@@ -2307,7 +2375,7 @@ export default function CreateQuotation() {
                   <button
                     type="button"
                     onClick={addServiceMaintenance}
-                    className="px-3 py-1 rounded bg-blue-600 text-white text-sm"
+                    className={addButtonClass}
                   >
                     Add
                   </button>
@@ -2321,7 +2389,7 @@ export default function CreateQuotation() {
                       onChange={(event) =>
                         updateServiceMaintenance(index, "item", event.target.value)
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                     />
                     <input
                       type="text"
@@ -2330,7 +2398,7 @@ export default function CreateQuotation() {
                       onChange={(event) =>
                         updateServiceMaintenance(index, "rentro", event.target.value)
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                     />
                     <input
                       type="text"
@@ -2339,12 +2407,12 @@ export default function CreateQuotation() {
                       onChange={(event) =>
                         updateServiceMaintenance(index, "others", event.target.value)
                       }
-                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition-colors"
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-200"
                     />
                     <button
                       type="button"
                       onClick={() => removeServiceMaintenance(index)}
-                      className="px-2 py-1 text-xs rounded bg-red-500 text-white"
+                      className={removeButtonClass}
                     >
                       Remove
                     </button>
@@ -2353,29 +2421,31 @@ export default function CreateQuotation() {
               </div>
 
               {/* Submit Button */}
-              <button 
-                type="button"
-                onClick={handleCreateQuotation}
-                disabled={!clientName || grandTotal <= 0 || isSubmitting}
-                className={`w-full py-3 px-4 rounded-lg font-medium transition-colors ${
-                  !clientName || grandTotal <= 0 || isSubmitting
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-blue-600 text-white hover:bg-blue-700'
-                }`}
-              >
-                {isSubmitting ? (
-                  <span className="flex items-center justify-center">
-                    <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                    </svg>
-                    Creating...
-                  </span>
-                ) : (
-                  editId ? 'Update Quotation' : 'Create Quotation'
-                )}
-              </button>
-              <button
+              <div className="mt-3 rounded-2xl border border-blue-100 bg-white p-3 shadow-sm">
+                <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                  <button 
+                    type="button"
+                    onClick={handleCreateQuotation}
+                    disabled={!clientName || grandTotal <= 0 || isSubmitting}
+                    className={`w-full py-3 px-4 rounded-xl font-semibold transition-colors ${
+                      !clientName || grandTotal <= 0 || isSubmitting
+                        ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                        : 'bg-blue-600 text-white hover:bg-blue-700'
+                    }`}
+                  >
+                    {isSubmitting ? (
+                      <span className="flex items-center justify-center">
+                        <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Creating...
+                      </span>
+                    ) : (
+                      editId ? 'Update Quotation' : 'Create Quotation'
+                    )}
+                  </button>
+                  <button
                 type="button"
                 onClick={() => {
                   setClientName("");
@@ -2411,24 +2481,33 @@ export default function CreateQuotation() {
                   ]);
                   sessionStorage.removeItem("quotationFormCache");
                 }}
-                className="mt-3 w-full py-3 px-4 rounded-lg font-medium transition-colors bg-gray-200 text-gray-700 hover:bg-gray-300"
+                className="w-full py-3 px-4 rounded-xl font-medium transition-colors bg-gray-200 text-gray-700 hover:bg-gray-300"
               >
                 Reset Form
               </button>
-              <button
+                  <button
                 type="button"
                 onClick={() => {
                   try {
                     sessionStorage.setItem("selectedProducts", JSON.stringify(products));
+                    sessionStorage.setItem("selectedQuotationType", quotationType);
                   } catch (error) {
                     console.error("Failed to store selected products", error);
                   }
-                  navigate("/new-quotation", { state: { selectedProducts: products } });
+                  navigate("/new-quotation", {
+                    state: {
+                      selectedProducts: products,
+                      quotationType,
+                      fromAddMoreProducts: true,
+                    },
+                  });
                 }}
-                className="mt-3 w-full py-3 px-4 rounded-lg font-medium transition-colors bg-blue-100 text-blue-700 hover:bg-blue-200"
+                className="w-full py-3 px-4 rounded-xl font-medium transition-colors bg-blue-100 text-blue-700 hover:bg-blue-200"
               >
                 Add More Products
               </button>
+                </div>
+              </div>
               {/* <button
                 type="button"
                 onClick={() => handleCreateQuotation({ navigateToPdf: true })}

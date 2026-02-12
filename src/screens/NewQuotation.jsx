@@ -134,8 +134,16 @@
 
 
 import { useMemo, useState, useEffect } from "react";
-import { Link, useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import axios from "axios";
+
+const quotationTypeOptions = [
+  "Rental Quotation",
+  "Sales Quotation",
+  "Service Quotation",
+  "AMC Quotation",
+  "RENT 2 OWN Quotation",
+];
 
 export default function NewQuotation() {
   const navigate = useNavigate();
@@ -146,6 +154,9 @@ export default function NewQuotation() {
   const [error, setError] = useState("");
   const [selectedProducts, setSelectedProducts] = useState([]);
   const [lockedProductIds, setLockedProductIds] = useState([]);
+  const [selectedQuotationType, setSelectedQuotationType] = useState("");
+  const [currentStep, setCurrentStep] = useState(1);
+  const canSelectProducts = Boolean(selectedQuotationType) && currentStep === 2;
 
   const getProducts = async () => {
     try {
@@ -183,6 +194,7 @@ export default function NewQuotation() {
   }, [search, products]);
 
   const toggleProduct = (product) => {
+    if (!selectedQuotationType) return;
     if (lockedProductIds.includes(product.productId)) return;
     setSelectedProducts((prev) => {
       const exists = prev.find((item) => item.productId === product.productId);
@@ -194,22 +206,54 @@ export default function NewQuotation() {
   };
 
   const handleProceed = () => {
-    if (selectedProducts.length === 0) return;
+    if (!selectedQuotationType || selectedProducts.length === 0) return;
     try {
       sessionStorage.setItem(
         "selectedProducts",
         JSON.stringify(selectedProducts)
       );
+      sessionStorage.setItem("selectedQuotationType", selectedQuotationType);
     } catch (error) {
-      console.error("Failed to store selected products", error);
+      console.error("Failed to store quotation data", error);
     }
-    navigate("/create-quotation", { state: { products: selectedProducts } });
+    navigate("/create-quotation", {
+      state: {
+        products: selectedProducts,
+        quotationType: selectedQuotationType,
+        fromNewQuotation: true,
+      },
+    });
+  };
+
+  const handleStartProductSelection = () => {
+    if (!selectedQuotationType) return;
+    setCurrentStep(2);
+    try {
+      sessionStorage.setItem("selectedQuotationType", selectedQuotationType);
+    } catch (error) {
+      console.error("Failed to store selected quotation type", error);
+    }
   };
 
   useEffect(() => {
     const incomingProductsFromState = location.state?.selectedProducts;
-    let initialSelectedProducts = [];
+    const incomingQuotationTypeFromState = location.state?.quotationType;
+    const fromAddMoreProducts = Boolean(location.state?.fromAddMoreProducts);
+    if (!fromAddMoreProducts) {
+      setSelectedProducts([]);
+      setSelectedQuotationType("");
+      setCurrentStep(1);
+      setLockedProductIds([]);
+      try {
+        sessionStorage.removeItem("selectedProducts");
+        sessionStorage.removeItem("selectedQuotationType");
+      } catch (error) {
+        console.error("Failed to clear quotation selection state", error);
+      }
+      return;
+    }
 
+    let initialSelectedProducts = [];
     if (incomingProductsFromState && incomingProductsFromState.length > 0) {
       initialSelectedProducts = incomingProductsFromState;
     } else {
@@ -222,15 +266,22 @@ export default function NewQuotation() {
       }
     }
 
+    const nextQuotationType =
+      incomingQuotationTypeFromState || sessionStorage.getItem("selectedQuotationType") || "";
+
     setSelectedProducts(initialSelectedProducts);
-    setLockedProductIds([]); // Per user request, do not lock/disable products
+    setSelectedQuotationType(nextQuotationType);
+    setCurrentStep(nextQuotationType ? 2 : 1);
+    setLockedProductIds([]);
 
     try {
       sessionStorage.setItem("selectedProducts", JSON.stringify(initialSelectedProducts));
+      if (nextQuotationType) {
+        sessionStorage.setItem("selectedQuotationType", nextQuotationType);
+      }
     } catch (error) {
-      console.error("Failed to save selected products to session storage", error);
+      console.error("Failed to save selected quotation details to session storage", error);
     }
-
   }, [location.state]);
 
   // Simple SVG icons to avoid external dependencies
@@ -259,16 +310,93 @@ export default function NewQuotation() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 p-4 md:p-6">
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50/40 to-cyan-50/30 p-4 md:p-6">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8">
+        <div className="mb-6 rounded-2xl border border-blue-100 bg-white/90 p-5 shadow-sm backdrop-blur">
           <h1 className="text-3xl font-bold text-gray-900 mb-2">New Quotation</h1>
-          <p className="text-gray-600">Select a product to start a new quotation</p>
+          <p className="text-gray-600">Step-by-step flow: type selection, products, then quotation form.</p>
+          <div className="mt-4 flex flex-wrap gap-2 text-sm">
+            <span
+              className={`rounded-full px-3 py-1 font-medium ${
+                currentStep === 1
+                  ? "bg-blue-600 text-white"
+                  : "bg-blue-100 text-blue-700"
+              }`}
+            >
+              1. Quotation Type
+            </span>
+            <span
+              className={`rounded-full px-3 py-1 font-medium ${
+                currentStep === 2
+                  ? "bg-blue-600 text-white"
+                  : "bg-blue-100 text-blue-700"
+              }`}
+            >
+              2. Product Selection
+            </span>
+            <span className="rounded-full bg-gray-100 px-3 py-1 font-medium text-gray-600">
+              3. Create Form
+            </span>
+          </div>
         </div>
 
+        {currentStep === 1 ? (
+          <div className="mb-8 rounded-2xl border border-blue-100 bg-gradient-to-r from-blue-50 via-sky-50 to-cyan-50 p-5 md:p-6 shadow-sm">
+            <p className="text-sm font-semibold text-blue-900 mb-3">Step 1: Select Quotation Type</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+              {quotationTypeOptions.map((type) => (
+                <button
+                  key={type}
+                  type="button"
+                  onClick={() => {
+                    setSelectedQuotationType(type);
+                    if (currentStep === 2) {
+                      setCurrentStep(1);
+                    }
+                  }}
+                  className={`rounded-xl border px-4 py-3 text-left text-sm font-medium transition-all ${
+                    selectedQuotationType === type
+                      ? "border-blue-600 bg-white text-blue-700 shadow"
+                      : "border-blue-200 bg-white/70 text-gray-700 hover:border-blue-400"
+                  }`}
+                >
+                  {type}
+                </button>
+              ))}
+            </div>
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-blue-800">
+                {selectedQuotationType
+                  ? `Selected: ${selectedQuotationType}`
+                  : "Select quotation type to continue"}
+              </p>
+              <button
+                type="button"
+                onClick={handleStartProductSelection}
+                disabled={!selectedQuotationType}
+                className={`rounded-lg px-5 py-2.5 text-sm font-semibold transition-colors ${
+                  selectedQuotationType
+                    ? "bg-blue-600 text-white hover:bg-blue-700"
+                    : "bg-gray-300 text-gray-600 cursor-not-allowed"
+                }`}
+              >
+                Create Quotation
+              </button>
+            </div>
+          </div>
+        ) : (
+          <div className="mb-5 rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
+            <p className="text-sm text-blue-800">
+              Quotation Type: <strong>{selectedQuotationType || "-"}</strong>
+            </p>
+          </div>
+        )}
+
+        {currentStep === 2 && (
+        <>
         {/* Search Bar */}
-        <div className="bg-white rounded-lg shadow p-4 md:p-6 mb-8">
+        <div className="bg-white rounded-xl shadow p-4 md:p-6 mb-8 border border-blue-100/70">
           <div className="flex flex-col md:flex-row md:items-center gap-4">
             <div className="flex-1">
               <div className="relative">
@@ -280,32 +408,52 @@ export default function NewQuotation() {
                   placeholder="Search products..."
                   value={search}
                   onChange={(e) => setSearch(e.target.value)}
-                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none"
+                  className={`w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none ${
+                    !canSelectProducts ? "bg-gray-100 cursor-not-allowed" : ""
+                  }`}
+                  disabled={!canSelectProducts}
                 />
               </div>
             </div>
             <button
               type="button"
               onClick={handleProceed}
-              disabled={selectedProducts.length === 0}
+              disabled={!selectedQuotationType || selectedProducts.length === 0}
               className={`inline-flex items-center justify-center px-6 py-3 font-medium rounded-lg transition-colors ${
-                selectedProducts.length === 0
+                !selectedQuotationType || selectedProducts.length === 0
                   ? "bg-gray-300 text-gray-600 cursor-not-allowed"
                   : "bg-blue-600 text-white hover:bg-blue-700"
               }`}
             >
               <Icons.Plus />
               <span className="ml-2">
-                Create Quotation ({selectedProducts.length})
+                Next ({selectedProducts.length})
               </span>
+            </button>
+          </div>
+          <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-sm">
+            <span className="text-blue-800">
+              Quotation Type: <strong>{selectedQuotationType || "-"}</strong>
+            </span>
+            <button
+              type="button"
+              onClick={() => setCurrentStep(1)}
+              className="text-blue-700 hover:text-blue-900 underline underline-offset-2"
+            >
+              Change quotation type
             </button>
           </div>
         </div>
 
         {/* Products Grid */}
-        <div className="bg-white rounded-lg shadow">
+        <div className="bg-white rounded-xl shadow border border-blue-100/70">
           <div className="px-6 py-4 border-b border-gray-200">
             <h2 className="text-xl font-semibold text-gray-900">Available Products</h2>
+            {!canSelectProducts && (
+              <p className="text-sm text-amber-700 mt-1">
+                Select quotation type first to enable product selection.
+              </p>
+            )}
           </div>
 
           <div className="p-6">
@@ -361,6 +509,7 @@ export default function NewQuotation() {
                             (item) => item.productId === product.productId
                           )}
                           onChange={() => toggleProduct(product)}
+                          disabled={!canSelectProducts}
                         />
                         Select
                       </label>
@@ -385,9 +534,10 @@ export default function NewQuotation() {
                         <button
                           type="button"
                           onClick={() => toggleProduct(product)}
+                          disabled={!canSelectProducts || lockedProductIds.includes(product.productId)}
                           
                           className={`px-4 py-2 w-full text-white text-sm font-medium rounded ${
-                            lockedProductIds.includes(product.productId)
+                            !canSelectProducts || lockedProductIds.includes(product.productId)
                               ? "bg-blue-200 cursor-not-allowed"
                               : "bg-blue-500 hover:bg-blue-600"
                           }`}
@@ -406,6 +556,8 @@ export default function NewQuotation() {
             </div>
           </div>
         </div>
+        </>
+        )}
       </div>
     </div>
   );

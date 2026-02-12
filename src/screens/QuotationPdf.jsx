@@ -737,6 +737,17 @@
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import bgImage from "../assets/pdf-bg.jpeg";
 
+const COUNTRY_CURRENCY_MAP = {
+  AE: "AED",
+  SA: "SAR",
+  IN: "INR",
+  QA: "QAR",
+  OM: "OMR",
+};
+
+const resolveCurrencyCode = (countryCode) =>
+  COUNTRY_CURRENCY_MAP[String(countryCode || "").toUpperCase()] || "AED";
+
 const QuotationPdf = () => {
   const pdfRef = useRef();
   const [form, setForm] = useState({
@@ -951,6 +962,10 @@ const QuotationPdf = () => {
   );
 
   const primaryLocation = purchaseLocations[0] || {};
+  const currencyCode = useMemo(
+    () => resolveCurrencyCode(form.countryCode),
+    [form.countryCode]
+  );
   const quotationType = form.quotationType || "Rental Quotation";
   const hasAnyProducts = allProducts.length > 0;
   const showRental = quotationType === "Rental Quotation";
@@ -1430,9 +1445,9 @@ With reference to your enquiry, regarding the supply of Water Purification Syste
                             <td>{product.name}</td>
                             <td>{product.capacity}</td>
                             <td>{product.qty}</td>
-                            <td>SAR: {unit.toFixed(2)}</td>
-                            <td>SAR: {discount.toFixed(2)}</td>
-                            <td>SAR: {total.toFixed(2)}</td>
+                            <td>{currencyCode}: {unit.toFixed(2)}</td>
+                            <td>{currencyCode}: {discount.toFixed(2)}</td>
+                            <td>{currencyCode}: {total.toFixed(2)}</td>
                            
                           </tr>
                         );
@@ -1446,7 +1461,7 @@ With reference to your enquiry, regarding the supply of Water Purification Syste
                     </tbody>
                   </table>
                   <div className="mt-2 text-right text-sm font-semibold text-gray-700">
-                    Delivery & Installation Total: SAR {deliveryTotalValue.toFixed(2)}
+                    Delivery & Installation Total: {currencyCode} {deliveryTotalValue.toFixed(2)}
                   </div>
                 </>
               )}
@@ -1485,10 +1500,10 @@ With reference to your enquiry, regarding the supply of Water Purification Syste
                             <td>{product.name}</td>
                             <td>{product.capacity}</td>
                             <td>{product.qty}</td>
-                            <td>SAR: {unit.toFixed(2)}</td>
-                            <td>SAR: {discount.toFixed(2)}</td>
+                            <td>{currencyCode}: {unit.toFixed(2)}</td>
+                            <td>{currencyCode}: {discount.toFixed(2)}</td>
                             <td>{months}</td>
-                            <td>SAR: {total.toFixed(2)}</td>
+                            <td>{currencyCode}: {total.toFixed(2)}</td>
                            
                           </tr>
                         );
@@ -1546,9 +1561,9 @@ With reference to your enquiry, regarding the supply of Water Purification Syste
                         <td>{product.name}</td>
                         <td>{product.capacity}</td>
                         <td>{product.qty}</td>
-                        <td>SAR: {unit.toFixed(2)}</td>
-                        <td>SAR: {discount.toFixed(2)}</td>
-                        <td>SAR: {total.toFixed(2)}</td>
+                        <td>{currencyCode}: {unit.toFixed(2)}</td>
+                        <td>{currencyCode}: {discount.toFixed(2)}</td>
+                        <td>{currencyCode}: {total.toFixed(2)}</td>
                         
                       </tr>
                     );
@@ -1603,9 +1618,9 @@ With reference to your enquiry, regarding the supply of Water Purification Syste
                         <td>{product.name}</td>
                         <td>{product.capacity}</td>
                         <td>{product.qty}</td>
-                        <td>SAR: {unit.toFixed(2)}</td>
-                        <td>SAR: {discount.toFixed(2)}</td>
-                        <td>SAR: {total.toFixed(2)}</td>
+                        <td>{currencyCode}: {unit.toFixed(2)}</td>
+                        <td>{currencyCode}: {discount.toFixed(2)}</td>
+                        <td>{currencyCode}: {total.toFixed(2)}</td>
                         
                       </tr>
                     );
@@ -1657,10 +1672,10 @@ With reference to your enquiry, regarding the supply of Water Purification Syste
                         <td>{product.name}</td>
                         <td>{product.capacity}</td>
                         <td>{product.qty}</td>
-                        <td>SAR: {unit.toFixed(2)}</td>
-                        <td>SAR: {discount.toFixed(2)}</td>
+                        <td>{currencyCode}: {unit.toFixed(2)}</td>
+                        <td>{currencyCode}: {discount.toFixed(2)}</td>
                         <td>{months}</td>
-                        <td>SAR: {total.toFixed(2)}</td>
+                        <td>{currencyCode}: {total.toFixed(2)}</td>
                       </tr>
                     );
                   })}

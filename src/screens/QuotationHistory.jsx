@@ -4,6 +4,17 @@ import { Link } from "react-router-dom";
 import QuotationPdf from "./QuotationPdf";
 import { databaseService } from "../database/databaseService";
 
+const COUNTRY_CURRENCY_MAP = {
+  AE: "AED",
+  SA: "SAR",
+  IN: "INR",
+  QA: "QAR",
+  OM: "OMR",
+};
+
+const resolveCurrencyCode = (countryCode) =>
+  COUNTRY_CURRENCY_MAP[String(countryCode || "").toUpperCase()] || "AED";
+
 const resolvePurchaseFor = (entry) => {
   const purpose = String(entry?.purpose || "").trim();
   if (purpose.toLowerCase() === "other") {
@@ -183,7 +194,8 @@ export default function QuotationHistory() {
               <span className="text-xs">{row.purchaseSummary || "-"}</span>
               <span>{row.quantity}</span>
               <span>
-                AED {Number(row.totalAmount || row.amount || 0).toFixed(2)}
+                {resolveCurrencyCode(row.countryCode)}{" "}
+                {Number(row.totalAmount || row.amount || 0).toFixed(2)}
               </span>
              
               <span className=" flex justify-center items-center gap-2 w-full ">
@@ -242,7 +254,10 @@ export default function QuotationHistory() {
                 </div>
                 <div>
                   <div className="text-xs text-blue-600">Total</div>
-                  <div>AED {Number(row.totalAmount || row.amount || 0).toFixed(2)}</div>
+                  <div>
+                    {resolveCurrencyCode(row.countryCode)}{" "}
+                    {Number(row.totalAmount || row.amount || 0).toFixed(2)}
+                  </div>
                 </div>
                 <div className="col-span-2">
                   <div className="text-xs text-blue-600">Project</div>
